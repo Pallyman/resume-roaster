@@ -9,7 +9,7 @@ import json
 import uuid
 import sqlite3
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, asdict
 from typing import Dict, Any, Optional, List, Union
 import base64
@@ -362,24 +362,62 @@ class DeepseekProvider(AIProvider):
     """Deepseek AI provider with enhanced analysis"""
     
     def __init__(self):
+        # Initialize configuration from Flask app settings
         self.api_key = app.config['DEEPSEEK_API_KEY']
         self.api_base = app.config['DEEPSEEK_API_BASE']
         self.model = app.config['DEEPSEEK_MODEL']
-    
+
+    def is_peak_hours(self) -> bool:
+        """Return True if the current time is during peak hours in China (6 PM–2 AM Beijing time).
+
+        Deepseek's service may become congested during peak usage hours in China.  By
+        determining whether the local Beijing time is between 18:00 and 02:00, we
+        can adjust our timeout and retry logic accordingly.  A shorter timeout is
+        used during these windows and the number of retries is reduced to avoid
+        long waits for users when the upstream service is overloaded.
+        """
+        beijing_tz = timezone(timedelta(hours=8))
+        beijing_time = datetime.now(beijing_tz)
+        hour = beijing_time.hour
+        # Peak hours are between 18:00 and 02:00 inclusive.
+        return hour >= 18 or hour <= 2
+
     def analyze_resume(self, content: str, resume_type: str = "general") -> Dict[str, Any]:
-        """Analyze resume using Deepseek"""
+        """Analyze the supplied resume using Deepseek with adaptive timeout and retries.
+
+        This method adapts its behaviour based on whether it's currently peak
+        hours in China.  If no API key is configured, a mock analysis will be
+        returned instead.  During peak hours the timeout is reduced and the
+        number of retries is limited to reduce delays for end users.  If the
+        Deepseek API repeatedly times out or returns a non‑200 response, a
+        fallback to the mock provider is used.
+        """
+        # Fall back to the mock provider if no API key is configured
         if not self.api_key:
             logger.error("Deepseek API key not configured")
-            raise ValueError("Deepseek API key not configured")
-        
+            return MockProvider().analyze_resume(content, resume_type)
+
+        # Determine timeout and retry policy based on current usage period
+        if self.is_peak_hours():
+            logger.warning("Peak hours detected - using shorter timeout")
+            timeout = 20
+            max_retries = 1
+        else:
+            timeout = 30
+            max_retries = 2
+
         headers = {
             'Authorization': f'Bearer {self.api_key}',
             'Content-Type': 'application/json'
         }
-        
+
+        # Build the prompt for the AI model.  We still utilise the enhanced
+        # system prompt defined on this class to provide rich guidance for the
+        # response format.  Limit the user content to 6000 characters to
+        # maintain reasonable payload sizes.
         system_prompt = self._get_enhanced_system_prompt()
         user_prompt = f"Roast this {resume_type} resume:\n\n{content[:6000]}"
-        
+
         data = {
             "model": self.model,
             "messages": [
@@ -387,33 +425,49 @@ class DeepseekProvider(AIProvider):
                 {"role": "user", "content": user_prompt}
             ],
             "temperature": 0.8,
-            "max_tokens": 3000  # Increased for detailed analysis
+            # Use a slightly lower token limit to improve stability
+            "max_tokens": 2000
         }
-        
-        try:
-            response = requests.post(
-                f"{self.api_base}/chat/completions",
-                headers=headers,
-                json=data,
-                timeout=30
-            )
-            
-            if response.status_code != 200:
-                logger.error(f"Deepseek API error: {response.status_code} - {response.text}")
-                raise ValueError(f"API error: {response.status_code}")
-            
-            result = response.json()
-            content = result['choices'][0]['message']['content']
-            
-            # Parse JSON from response
-            return self._parse_response(content)
-            
-        except requests.exceptions.Timeout:
-            logger.error("Deepseek API timeout")
-            raise ValueError("API request timed out")
-        except Exception as e:
-            logger.error(f"Deepseek API error: {e}")
-            raise
+
+        # Attempt the API call, retrying if configured
+        for attempt in range(max_retries):
+            try:
+                start_time = time.time()
+                response = requests.post(
+                    f"{self.api_base}/chat/completions",
+                    headers=headers,
+                    json=data,
+                    timeout=timeout
+                )
+                elapsed = time.time() - start_time
+                logger.info(f"Deepseek API responded in {elapsed:.2f}s")
+
+                # Non‑200 responses are considered failures.  If we have
+                # additional attempts remaining we retry after a short pause;
+                # otherwise fall back to the mock provider.
+                if response.status_code != 200:
+                    logger.error(f"Deepseek API error: {response.status_code} - {response.text}")
+                    if attempt < max_retries - 1:
+                        time.sleep(2)
+                        continue
+                    logger.info("API error - falling back to mock provider")
+                    return MockProvider().analyze_resume(content, resume_type)
+
+                result = response.json()
+                message_content = result['choices'][0]['message']['content']
+                return self._parse_response(message_content)
+
+            except requests.exceptions.Timeout:
+                # If a timeout occurs, retry if possible otherwise fall back
+                logger.warning(f"Deepseek timeout on attempt {attempt + 1}")
+                if attempt < max_retries - 1:
+                    continue
+                logger.error("All Deepseek attempts timed out - using mock")
+                return MockProvider().analyze_resume(content, resume_type)
+            except Exception as e:
+                # Any other exception triggers immediate fallback to the mock
+                logger.error(f"Deepseek error: {e}")
+                return MockProvider().analyze_resume(content, resume_type)
     
     def _get_enhanced_system_prompt(self) -> str:
         """Get the enhanced system prompt for detailed resume analysis"""
@@ -879,6 +933,16 @@ def analyze_resume():
         # Analyze with AI
         try:
             ai_provider = get_ai_provider()
+            # If using Deepseek, warn users during peak hours that responses may be slower.  We
+            # call is_peak_hours() defensively to avoid unnecessary errors if other providers
+            # are used.
+            if isinstance(ai_provider, DeepseekProvider):
+                try:
+                    if ai_provider.is_peak_hours():
+                        logger.info("⚠️ Peak hours in China - API may be slower than usual")
+                except Exception:
+                    # Don't let unexpected errors here disrupt the analysis
+                    pass
             analysis_data = ai_provider.analyze_resume(content, resume_type)
         except Exception as e:
             logger.error(f"AI analysis failed: {e}")
