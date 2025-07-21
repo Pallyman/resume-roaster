@@ -213,19 +213,15 @@ class ResumeAnalyzer:
             logger.warning("Failed to parse AI response, using fallback")
             return ResumeAnalyzer._get_fallback_analysis()
             
+        except openai.error.AuthenticationError as e:
+            logger.error(f"OpenAI Authentication Error: {e}")
+            return ResumeAnalyzer._get_fallback_analysis("Authentication failed - check API key")
+        except openai.error.RateLimitError as e:
+            logger.error(f"OpenAI Rate Limit Error: {e}")
+            return ResumeAnalyzer._get_fallback_analysis("Rate limit exceeded - try again later")
         except Exception as e:
-            # Catch all exceptions from OpenAI and provide a graceful fallback
-            # In some environments the openai library may not expose the `error` attribute,
-            # so we avoid referencing openai.error directly. Instead, inspect the error message
-            # and return a more descriptive fallback when possible.
-            err_msg = str(e)
-            logger.error(f"AI analysis error: {err_msg}")
+            logger.error(f"AI analysis error: {str(e)}")
             logger.error(traceback.format_exc())
-            lower_msg = err_msg.lower()
-            if 'authentication' in lower_msg:
-                return ResumeAnalyzer._get_fallback_analysis("Authentication failed - check API key")
-            if 'rate limit' in lower_msg or 'ratelimit' in lower_msg:
-                return ResumeAnalyzer._get_fallback_analysis("Rate limit exceeded - try again later")
             return ResumeAnalyzer._get_fallback_analysis()
     
     @staticmethod
@@ -941,6 +937,33 @@ def internal_error(e):
 @app.errorhandler(413)
 def file_too_large(e):
     return jsonify({"error": "File too large. Maximum size is 10MB"}), 413
+
+# -----------------------------------------------------------------------------
+# Database initialization hooks
+#
+# When running under a WSGI server (e.g., gunicorn or Flask's CLI), the
+# `__main__` block below is not executed. As a result, the database may not
+# be created before requests arrive, leading to "no such table" errors. To
+# prevent this, we call `init_database()` during module import and register a
+# `before_first_request` handler. Both are idempotent and safe to run multiple
+# times because the database schema uses `IF NOT EXISTS` clauses.
+
+# Attempt to initialize the database immediately on import. If this fails we
+# log the error but continue; the `before_first_request` hook will run later.
+try:
+    init_database()
+except Exception as e:
+    logger.error(f"Database initialization on import failed: {e}")
+
+# Ensure the database is initialized when the first request is handled. This
+# covers scenarios where the module is imported by a WSGI server and the
+# top-level import attempt didn't run or failed.
+@app.before_first_request
+def initialize_database():
+    try:
+        init_database()
+    except Exception as e:
+        logger.error(f"Database initialization before first request failed: {e}")
 
 # Initialize and run
 if __name__ == '__main__':
