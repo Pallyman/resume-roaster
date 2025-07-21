@@ -1,6 +1,5 @@
 
 # Create or update requirements.txt with all dependencies
-cat > requirements.txt << EOF
 Flask==2.3.2
 Flask-Cors==3.0.10
 gunicorn==21.2.0
