@@ -782,7 +782,7 @@
                 <span class="upload-icon">📄</span>
                 <div class="upload-text">Drop your resume here or click to browse</div>
                 <div class="file-types">PDF or TXT files (max 10MB)</div>
-                <input type="file" id="fileInput" accept=".pdf,.txt,.doc,.docx">
+                <input type="file" id="fileInput" accept=".pdf,.txt">
             </div>
             
             <div class="selected-file" id="selectedFile"></div>
@@ -964,8 +964,9 @@
         });
 
         function handleFileSelect(file) {
-            const validTypes = ['application/pdf', 'text/plain', 'application/msword', 
-                               'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+            // Allow only PDF and plain text files. The backend currently supports
+            // PDF and TXT; Word documents are not processed, so exclude them.
+            const validTypes = ['application/pdf', 'text/plain'];
             const maxSize = 10 * 1024 * 1024; // 10MB
 
             if (!validTypes.includes(file.type)) {
@@ -1097,7 +1098,9 @@
             const shareData = {
                 title: 'My Resume Roast',
                 text: `I got my resume roasted by AI! Check out the results.`,
-                url: `${window.location.origin}/analysis/${currentAnalysisId}`
+                // Share a link to the API endpoint for this analysis. You can
+                // create a pretty landing page later.
+                url: `${window.location.origin}/api/analysis/${currentAnalysisId}`
             };
 
             try {
@@ -1195,8 +1198,18 @@
         function displayStats(stats) {
             document.getElementById('totalRoasts').textContent = stats.total_analyses.toLocaleString();
             document.getElementById('interviewRate').textContent = `${stats.interview_rate}%`;
-            document.getElementById('avgClarity').textContent = stats.avg_scores.clarity;
-            document.getElementById('avgImpact').textContent = stats.avg_scores.impact;
+
+            /*
+             * The backend currently returns only overall average score (avg_overall_score)
+             * but not per-dimension averages. Use avg_scores if present; otherwise
+             * fall back to avg_overall_score so the UI still displays something.
+             */
+            let clarity = stats.avg_scores && stats.avg_scores.clarity;
+            let impact = stats.avg_scores && stats.avg_scores.impact;
+            if (clarity === undefined) clarity = stats.avg_overall_score;
+            if (impact === undefined) impact = stats.avg_overall_score;
+            document.getElementById('avgClarity').textContent = clarity;
+            document.getElementById('avgImpact').textContent = impact;
         }
 
         // Helper functions

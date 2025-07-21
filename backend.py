@@ -59,7 +59,9 @@ class Config:
     ALLOWED_EXTENSIONS = {'pdf', 'txt', 'doc', 'docx'}
     
     # AI Provider Configuration
-    AI_PROVIDER = os.getenv('AI_PROVIDER', 'deepseek')  # 'deepseek', 'openai', or 'mock'
+    # Default to the mock provider in development. You can override this via
+    # the AI_PROVIDER environment variable (e.g. 'deepseek' or 'openai').
+    AI_PROVIDER = os.getenv('AI_PROVIDER', 'mock')  # 'mock', 'deepseek', or 'openai'
     
     # Deepseek config
     DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY', '')
