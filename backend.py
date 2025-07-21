@@ -213,15 +213,19 @@ class ResumeAnalyzer:
             logger.warning("Failed to parse AI response, using fallback")
             return ResumeAnalyzer._get_fallback_analysis()
             
-        except openai.error.AuthenticationError as e:
-            logger.error(f"OpenAI Authentication Error: {e}")
-            return ResumeAnalyzer._get_fallback_analysis("Authentication failed - check API key")
-        except openai.error.RateLimitError as e:
-            logger.error(f"OpenAI Rate Limit Error: {e}")
-            return ResumeAnalyzer._get_fallback_analysis("Rate limit exceeded - try again later")
         except Exception as e:
-            logger.error(f"AI analysis error: {str(e)}")
+            # Catch all exceptions from OpenAI and provide a graceful fallback
+            # In some environments the openai library may not expose the `error` attribute,
+            # so we avoid referencing openai.error directly. Instead, inspect the error message
+            # and return a more descriptive fallback when possible.
+            err_msg = str(e)
+            logger.error(f"AI analysis error: {err_msg}")
             logger.error(traceback.format_exc())
+            lower_msg = err_msg.lower()
+            if 'authentication' in lower_msg:
+                return ResumeAnalyzer._get_fallback_analysis("Authentication failed - check API key")
+            if 'rate limit' in lower_msg or 'ratelimit' in lower_msg:
+                return ResumeAnalyzer._get_fallback_analysis("Rate limit exceeded - try again later")
             return ResumeAnalyzer._get_fallback_analysis()
     
     @staticmethod
