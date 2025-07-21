@@ -1,1 +1,1 @@
-from resume-roaster-backend import app 
+from backend import app
