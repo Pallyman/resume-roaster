@@ -10,1224 +10,1001 @@
             padding: 0;
             box-sizing: border-box;
         }
-
-        :root {
-            --primary: #ff6600;
-            --primary-dark: #e55500;
-            --success: #00ff88;
-            --error: #ff4444;
-            --warning: #ffaa00;
-            --bg-dark: #0a0a0a;
-            --bg-card: #1a1a1a;
-            --text-primary: #ffffff;
-            --text-secondary: #999999;
-            --text-muted: #666666;
-        }
-
+        
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--bg-dark);
-            color: var(--text-primary);
-            min-height: 100vh;
+            background: #0a0a0a;
+            color: #ffffff;
             line-height: 1.6;
             overflow-x: hidden;
         }
-
-        /* Animated background */
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: radial-gradient(circle at 20% 50%, rgba(255, 102, 0, 0.1) 0%, transparent 50%),
-                        radial-gradient(circle at 80% 80%, rgba(255, 102, 0, 0.05) 0%, transparent 50%);
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        .container {
-            max-width: 1200px;
-            width: 100%;
-            margin: 0 auto;
-            padding: 0 20px;
-            position: relative;
-            z-index: 1;
-        }
-
+        
         /* Header */
-        .header {
-            padding: 40px 0;
+        header {
+            padding: 20px 0;
             text-align: center;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            animation: fadeInDown 0.6s ease-out;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
-
-        @keyframes fadeInDown {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
+        
         .logo {
-            font-size: 3.5em;
-            font-weight: 900;
-            background: linear-gradient(135deg, var(--primary) 0%, #ff9900 100%);
+            font-size: 2em;
+            font-weight: bold;
+            background: linear-gradient(135deg, #ff6600 0%, #ff9900 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            margin-bottom: 10px;
-            text-transform: uppercase;
-            letter-spacing: -2px;
         }
-
-        .tagline {
+        
+        /* Hero Section */
+        .hero {
+            text-align: center;
+            padding: 80px 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .hero h1 {
+            font-size: 3em;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #ff6600 0%, #ff9900 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .hero p {
             font-size: 1.2em;
-            color: var(--text-secondary);
-            font-weight: 300;
+            color: #ccc;
+            margin-bottom: 40px;
         }
-
+        
         /* Upload Section */
         .upload-section {
-            background: var(--bg-card);
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 40px;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
             border-radius: 20px;
-            padding: 60px 40px;
-            margin: 40px auto;
-            max-width: 800px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-            animation: fadeInUp 0.8s ease-out;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+        
+        .file-upload-wrapper {
             position: relative;
             overflow: hidden;
+            display: inline-block;
+            width: 100%;
         }
-
-        .upload-section::before {
-            content: '';
+        
+        .file-upload-input {
             position: absolute;
-            top: -50%;
-            right: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle, rgba(255, 102, 0, 0.1) 0%, transparent 70%);
-            animation: pulse 4s ease-in-out infinite;
+            font-size: 100px;
+            opacity: 0;
+            right: 0;
+            top: 0;
+            cursor: pointer;
         }
-
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); opacity: 0.5; }
-            50% { transform: scale(1.1); opacity: 0.3; }
-        }
-
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .upload-title {
-            font-size: 2.5em;
-            font-weight: 700;
-            background: linear-gradient(135deg, var(--primary) 0%, #ff9900 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 15px;
-            position: relative;
-            z-index: 1;
-        }
-
-        .upload-subtitle {
-            color: var(--text-secondary);
-            margin-bottom: 40px;
-            font-size: 1.1em;
-            position: relative;
-            z-index: 1;
-        }
-
-        .upload-area {
-            border: 3px dashed rgba(255, 102, 0, 0.3);
-            border-radius: 16px;
-            padding: 80px 40px;
+        
+        .file-upload-label {
+            display: block;
+            padding: 20px;
+            background: #ff6600;
+            color: white;
+            border-radius: 10px;
+            text-align: center;
             cursor: pointer;
             transition: all 0.3s ease;
-            position: relative;
-            background: rgba(255, 102, 0, 0.02);
-            z-index: 1;
+            font-weight: bold;
+            font-size: 1.1em;
         }
-
-        .upload-area:hover {
-            border-color: var(--primary);
-            background: rgba(255, 102, 0, 0.08);
+        
+        .file-upload-label:hover {
+            background: #ff8800;
             transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(255, 102, 0, 0.2);
+            box-shadow: 0 5px 20px rgba(255, 102, 0, 0.3);
         }
-
-        .upload-area.dragging {
-            border-color: var(--primary);
-            background: rgba(255, 102, 0, 0.15);
-            transform: scale(1.02);
-        }
-
-        .upload-icon {
-            font-size: 4em;
-            margin-bottom: 20px;
-            display: block;
-            animation: bounce 2s ease-in-out infinite;
-        }
-
-        @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-        }
-
-        .upload-text {
-            font-size: 1.3em;
-            margin-bottom: 10px;
-            font-weight: 600;
-        }
-
-        .file-types {
-            color: var(--text-muted);
-            font-size: 0.9em;
-        }
-
-        input[type="file"] {
+        
+        .file-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
             display: none;
         }
-
-        .selected-file {
-            margin-top: 20px;
-            color: var(--success);
-            font-weight: 500;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-        }
-
+        
         .analyze-button {
-            background: linear-gradient(135deg, var(--primary) 0%, #ff8800 100%);
+            width: 100%;
+            padding: 15px;
+            background: #00cc44;
             color: white;
             border: none;
-            padding: 18px 60px;
-            font-size: 1.2em;
-            font-weight: 700;
-            border-radius: 50px;
+            border-radius: 10px;
+            font-size: 1.1em;
+            font-weight: bold;
             cursor: pointer;
-            margin-top: 30px;
             transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            box-shadow: 0 10px 30px rgba(255, 102, 0, 0.3);
-            position: relative;
-            overflow: hidden;
-            z-index: 1;
+            margin-top: 20px;
+            display: none;
         }
-
-        .analyze-button::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: rgba(255, 255, 255, 0.2);
-            transition: left 0.3s ease;
-        }
-
-        .analyze-button:hover::before {
-            left: 100%;
-        }
-
+        
         .analyze-button:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 15px 40px rgba(255, 102, 0, 0.4);
+            background: #00ff55;
+            transform: translateY(-2px);
         }
-
+        
         .analyze-button:disabled {
-            background: #444444;
+            background: #666;
             cursor: not-allowed;
             transform: none;
-            box-shadow: none;
         }
-
+        
+        /* Loading State */
         .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-top: 3px solid white;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-left: 10px;
-            vertical-align: middle;
+            display: none;
+            text-align: center;
+            padding: 40px;
         }
-
+        
+        .spinner {
+            border: 4px solid #333;
+            border-top: 4px solid #ff6600;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-
+        
         /* Results Section */
         .results-section {
-            background: var(--bg-card);
-            border-radius: 20px;
-            padding: 60px 40px;
-            margin: 40px auto;
-            max-width: 1000px;
             display: none;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-            position: relative;
-            overflow: hidden;
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 0 20px;
         }
-
-        .results-section.show {
-            display: block;
-            animation: fadeIn 0.6s ease-out;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        /* Verdict Section */
-        .verdict {
-            text-align: center;
-            margin-bottom: 60px;
-            position: relative;
-        }
-
-        .decision {
-            font-size: 5em;
-            font-weight: 900;
-            margin-bottom: 10px;
-            text-transform: uppercase;
-            letter-spacing: -2px;
-            animation: scaleIn 0.5s ease-out;
-        }
-
-        @keyframes scaleIn {
-            from { transform: scale(0); }
-            to { transform: scale(1); }
-        }
-
-        .decision.interview {
-            color: var(--success);
-            text-shadow: 0 0 30px rgba(0, 255, 136, 0.5);
-        }
-
-        .decision.pass {
-            color: var(--error);
-            text-shadow: 0 0 30px rgba(255, 68, 68, 0.5);
-        }
-
-        .confidence {
-            font-size: 1.3em;
-            color: var(--text-secondary);
+        
+        /* Verdict Card */
+        .verdict-card {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            border-radius: 20px;
+            padding: 40px;
             margin-bottom: 30px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
         }
-
-        .hot-take {
-            font-size: 1.8em;
-            font-style: italic;
-            color: var(--primary);
-            background: rgba(255, 102, 0, 0.1);
-            padding: 30px;
-            border-radius: 16px;
-            border-left: 5px solid var(--primary);
-            position: relative;
-            quotes: """ """;
-        }
-
-        .hot-take::before,
-        .hot-take::after {
+        
+        .verdict-decision {
             font-size: 3em;
-            color: var(--primary);
-            opacity: 0.3;
-            position: absolute;
+            font-weight: bold;
+            margin-bottom: 10px;
         }
-
-        .hot-take::before {
-            content: open-quote;
-            top: -10px;
-            left: 10px;
+        
+        .verdict-decision.pass {
+            color: #ff4444;
         }
-
-        .hot-take::after {
-            content: close-quote;
-            bottom: -30px;
-            right: 10px;
+        
+        .verdict-decision.interview {
+            color: #00ff00;
         }
-
-        /* Score Cards */
-        .score-cards {
+        
+        .confidence-badge {
+            display: inline-block;
+            padding: 10px 20px;
+            background: rgba(255, 102, 0, 0.2);
+            border: 2px solid #ff6600;
+            border-radius: 20px;
+            color: #ff6600;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        
+        .hot-take {
+            font-size: 1.5em;
+            font-style: italic;
+            color: #fff;
+            margin: 20px 0;
+            padding: 20px;
+            background: rgba(255, 102, 0, 0.1);
+            border-left: 4px solid #ff6600;
+            border-radius: 10px;
+        }
+        
+        /* Scores Grid */
+        .scores-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 20px;
-            margin: 40px 0;
+            margin: 30px 0;
         }
-
+        
         .score-card {
             background: rgba(255, 255, 255, 0.05);
-            border-radius: 16px;
-            padding: 25px;
+            padding: 20px;
+            border-radius: 15px;
             text-align: center;
             transition: all 0.3s ease;
-            border: 1px solid rgba(255, 255, 255, 0.1);
         }
-
+        
         .score-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(255, 102, 0, 0.2);
-            border-color: rgba(255, 102, 0, 0.3);
+            background: rgba(255, 255, 255, 0.08);
         }
-
+        
         .score-label {
             font-size: 0.9em;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            color: #999;
             margin-bottom: 10px;
         }
-
+        
         .score-value {
             font-size: 2.5em;
-            font-weight: 700;
-            color: var(--primary);
+            font-weight: bold;
+            color: #ff6600;
         }
-
+        
         .score-bar {
+            width: 100%;
             height: 8px;
-            background: rgba(255, 255, 255, 0.1);
+            background: #333;
             border-radius: 4px;
-            margin-top: 15px;
+            margin-top: 10px;
             overflow: hidden;
         }
-
+        
         .score-fill {
             height: 100%;
-            background: linear-gradient(90deg, var(--primary) 0%, #ff9900 100%);
-            border-radius: 4px;
-            transition: width 1s ease-out;
+            background: #ff6600;
+            transition: width 1s ease;
         }
-
+        
         /* Feedback Section */
         .feedback-section {
-            margin: 60px 0;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            border-radius: 20px;
+            padding: 40px;
+            margin: 30px 0;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
         }
-
-        .feedback-item {
-            margin-bottom: 40px;
-            animation: slideInLeft 0.6s ease-out;
-        }
-
-        @keyframes slideInLeft {
-            from {
-                opacity: 0;
-                transform: translateX(-30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
-        }
-
+        
         .feedback-title {
-            font-size: 1.5em;
+            font-size: 2em;
+            color: #ff6600;
+            margin-bottom: 20px;
+        }
+        
+        .brutal-truth {
+            font-size: 1.3em;
+            color: #ff4444;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255, 68, 68, 0.1);
+            border-radius: 10px;
+            border-left: 4px solid #ff4444;
+        }
+        
+        .advice-list {
+            list-style: none;
+            margin: 20px 0;
+        }
+        
+        .advice-item {
+            padding: 15px;
+            margin: 10px 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            border-left: 4px solid #00cc44;
+            transition: all 0.3s ease;
+        }
+        
+        .advice-item:hover {
+            transform: translateX(5px);
+            background: rgba(255, 255, 255, 0.08);
+        }
+        
+        .encouragement {
+            font-size: 1.1em;
+            color: #00cc44;
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(0, 204, 68, 0.1);
+            border-radius: 10px;
+        }
+        
+        /* Enhanced styles for detailed critique section */
+        .detailed-critique-section {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            border-radius: 20px;
+            padding: 40px;
+            margin-top: 40px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+        
+        .critique-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #ff6600;
+        }
+        
+        .critique-icon {
+            font-size: 48px;
+            margin-right: 20px;
+        }
+        
+        .critique-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: #ff6600;
+            margin: 0;
+        }
+        
+        .critique-subtitle {
+            font-size: 16px;
+            color: #999;
+            margin-top: 5px;
+        }
+        
+        .critique-section {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border-left: 4px solid #ff6600;
+            transition: all 0.3s ease;
+        }
+        
+        .critique-section:hover {
+            transform: translateX(5px);
+            background: rgba(255, 255, 255, 0.08);
+        }
+        
+        .critique-section-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #ff6600;
             margin-bottom: 15px;
             display: flex;
             align-items: center;
-            gap: 15px;
-            font-weight: 700;
         }
-
-        .feedback-icon {
-            font-size: 1.3em;
-            width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.1);
+        
+        .critique-section-icon {
+            margin-right: 10px;
+            font-size: 24px;
         }
-
-        .brutal-truth .feedback-title {
-            color: var(--error);
-        }
-
-        .brutal-truth .feedback-icon {
-            background: rgba(255, 68, 68, 0.2);
-        }
-
-        .promising .feedback-title {
-            color: var(--success);
-        }
-
-        .promising .feedback-icon {
-            background: rgba(0, 255, 136, 0.2);
-        }
-
-        .mistakes .feedback-title {
-            color: var(--warning);
-        }
-
-        .mistakes .feedback-icon {
-            background: rgba(255, 170, 0, 0.2);
-        }
-
-        .feedback-content {
-            color: var(--text-secondary);
+        
+        .critique-text {
+            font-size: 16px;
             line-height: 1.8;
-            padding-left: 55px;
-            font-size: 1.1em;
+            color: #e0e0e0;
+            text-align: justify;
         }
-
-        .feedback-list {
-            list-style: none;
-            padding-left: 55px;
-        }
-
-        .feedback-list li {
-            color: var(--text-secondary);
-            padding: 10px 0;
-            padding-left: 30px;
-            position: relative;
-            font-size: 1.1em;
-        }
-
-        .feedback-list li::before {
-            content: "→";
-            position: absolute;
-            left: 0;
-            color: var(--primary);
-            font-weight: bold;
-        }
-
-        /* Action Buttons */
-        .action-buttons {
+        
+        .critique-navigation {
             display: flex;
-            gap: 20px;
-            justify-content: center;
-            margin-top: 60px;
+            gap: 10px;
+            margin-bottom: 30px;
             flex-wrap: wrap;
         }
-
-        .action-button {
-            padding: 15px 40px;
-            font-size: 1.1em;
-            font-weight: 600;
-            border-radius: 50px;
-            border: none;
+        
+        .critique-nav-button {
+            padding: 10px 20px;
+            background: rgba(255, 102, 0, 0.2);
+            border: 2px solid #ff6600;
+            border-radius: 25px;
+            color: #ff6600;
             cursor: pointer;
             transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            position: relative;
-            overflow: hidden;
+            font-weight: 600;
+            border: none;
+            font-size: 14px;
         }
-
-        .share-button {
-            background: linear-gradient(135deg, var(--primary) 0%, #ff8800 100%);
-            color: white;
-            box-shadow: 0 10px 30px rgba(255, 102, 0, 0.3);
+        
+        .critique-nav-button:hover,
+        .critique-nav-button.active {
+            background: #ff6600;
+            color: #000;
+            transform: translateY(-2px);
         }
-
-        .share-button:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 15px 40px rgba(255, 102, 0, 0.4);
+        
+        .critique-summary-box {
+            background: linear-gradient(135deg, rgba(255, 102, 0, 0.1) 0%, rgba(255, 102, 0, 0.05) 100%);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 2px solid rgba(255, 102, 0, 0.3);
         }
-
-        .download-button {
-            background: transparent;
-            color: var(--primary);
-            border: 2px solid var(--primary);
+        
+        .critique-summary-text {
+            font-size: 18px;
+            line-height: 1.8;
+            color: #ffffff;
+            font-weight: 500;
         }
-
-        .download-button:hover {
-            background: var(--primary);
-            color: white;
-            transform: translateY(-3px);
-            box-shadow: 0 10px 30px rgba(255, 102, 0, 0.3);
-        }
-
-        .new-resume-button {
-            background: linear-gradient(135deg, #6b46c1 0%, #8b5cf6 100%);
-            color: white;
-            box-shadow: 0 10px 30px rgba(107, 70, 193, 0.3);
-        }
-
-        .new-resume-button:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 15px 40px rgba(107, 70, 193, 0.4);
-        }
-
+        
         /* Roast Card */
-        .roast-card {
-            margin: 60px 0;
+        .roast-card-section {
             text-align: center;
+            margin: 40px 0;
         }
-
-        .roast-card img {
+        
+        .roast-card-title {
+            font-size: 2em;
+            color: #ff6600;
+            margin-bottom: 20px;
+        }
+        
+        .roast-card-image {
             max-width: 100%;
-            max-height: 600px;
-            border-radius: 16px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
-            transition: transform 0.3s ease;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
         }
-
-        .roast-card img:hover {
-            transform: scale(1.02);
+        
+        .share-buttons {
+            margin-top: 30px;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
         }
-
-        /* Gallery Section */
+        
+        .share-button {
+            padding: 12px 24px;
+            background: rgba(255, 102, 0, 0.2);
+            border: 2px solid #ff6600;
+            border-radius: 25px;
+            color: #ff6600;
+            text-decoration: none;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        .share-button:hover {
+            background: #ff6600;
+            color: #000;
+            transform: translateY(-2px);
+        }
+        
+        /* Gallery */
         .gallery-section {
-            margin: 80px 0;
+            max-width: 1200px;
+            margin: 60px auto;
+            padding: 0 20px;
         }
-
+        
         .gallery-title {
             font-size: 2.5em;
             text-align: center;
+            color: #ff6600;
             margin-bottom: 40px;
-            background: linear-gradient(135deg, var(--primary) 0%, #ff9900 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
         }
-
+        
         .gallery-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 30px;
+            gap: 20px;
         }
-
+        
         .gallery-item {
-            background: var(--bg-card);
-            border-radius: 16px;
-            padding: 25px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 15px;
             transition: all 0.3s ease;
-            border: 1px solid rgba(255, 255, 255, 0.1);
             cursor: pointer;
         }
-
+        
         .gallery-item:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(255, 102, 0, 0.2);
-            border-color: rgba(255, 102, 0, 0.3);
+            background: rgba(255, 255, 255, 0.08);
         }
-
-        .gallery-decision {
-            font-size: 1.3em;
-            font-weight: 700;
-            margin-bottom: 10px;
-        }
-
-        .gallery-decision.interview {
-            color: var(--success);
-        }
-
-        .gallery-decision.pass {
-            color: var(--error);
-        }
-
+        
         .gallery-hot-take {
-            color: var(--text-secondary);
             font-style: italic;
-            margin-bottom: 15px;
-            font-size: 0.95em;
-        }
-
-        .gallery-score {
-            color: var(--primary);
-            font-weight: 600;
-        }
-
-        /* Stats Section */
-        .stats-section {
-            background: var(--bg-card);
-            border-radius: 20px;
-            padding: 60px;
-            margin: 80px auto;
-            max-width: 1000px;
-            text-align: center;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 40px;
-            margin-top: 40px;
-        }
-
-        .stat-item {
-            position: relative;
-        }
-
-        .stat-value {
-            font-size: 3em;
-            font-weight: 900;
-            color: var(--primary);
+            color: #fff;
             margin-bottom: 10px;
         }
-
-        .stat-label {
-            font-size: 1.1em;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 1px;
+        
+        .gallery-score {
+            color: #ff6600;
+            font-weight: bold;
         }
-
-        /* Footer */
-        .footer {
-            text-align: center;
-            padding: 60px 0;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            color: var(--text-muted);
-        }
-
-        .footer p {
-            margin: 10px 0;
-        }
-
-        /* Messages */
-        .message {
-            padding: 20px;
-            border-radius: 12px;
-            margin: 20px 0;
-            text-align: center;
-            font-weight: 500;
-            animation: slideDown 0.3s ease-out;
-        }
-
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .success-message {
-            background: rgba(0, 255, 136, 0.1);
-            border: 1px solid rgba(0, 255, 136, 0.3);
-            color: var(--success);
-        }
-
+        
+        /* Error Message */
         .error-message {
             background: rgba(255, 68, 68, 0.1);
-            border: 1px solid rgba(255, 68, 68, 0.3);
-            color: var(--error);
+            border: 2px solid #ff4444;
+            color: #ff4444;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: center;
+            display: none;
         }
-
-        /* Responsive */
+        
+        /* Responsive Design */
         @media (max-width: 768px) {
-            .logo {
-                font-size: 2.5em;
+            .hero h1 {
+                font-size: 2em;
             }
             
-            .upload-section {
-                padding: 40px 20px;
+            .scores-grid {
+                grid-template-columns: 1fr 1fr;
             }
             
-            .upload-area {
-                padding: 60px 20px;
-            }
-            
-            .decision {
-                font-size: 3.5em;
-            }
-            
-            .hot-take {
-                font-size: 1.4em;
-                padding: 20px;
-            }
-            
-            .score-cards {
-                grid-template-columns: repeat(2, 1fr);
-            }
-            
-            .action-buttons {
+            .critique-header {
                 flex-direction: column;
-                align-items: stretch;
+                text-align: center;
             }
             
-            .action-button {
-                width: 100%;
+            .critique-icon {
+                margin-right: 0;
+                margin-bottom: 10px;
+            }
+            
+            .detailed-critique-section {
+                padding: 20px;
             }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <div class="logo">Resume Roaster</div>
-            <div class="tagline">Get brutally honest AI feedback that actually helps you land interviews</div>
+    <header>
+        <div class="logo">RESUME ROASTER 🔥</div>
+    </header>
+    
+    <section class="hero">
+        <h1>Get Your Resume Roasted</h1>
+        <p>Upload your resume and get brutally honest AI feedback that actually helps you land interviews.</p>
+    </section>
+    
+    <section class="upload-section">
+        <div class="file-upload-wrapper">
+            <input type="file" id="fileInput" class="file-upload-input" accept=".pdf,.txt,.doc,.docx">
+            <label for="fileInput" class="file-upload-label">
+                📄 Choose Your Resume (PDF, TXT, DOC, DOCX)
+            </label>
         </div>
-
-        <div class="upload-section">
-            <h2 class="upload-title">Start Your Roast</h2>
-            <p class="upload-subtitle">Upload your resume and prepare for some tough love. No login required!</p>
-            
-            <div class="upload-area" id="uploadArea">
-                <span class="upload-icon">📄</span>
-                <div class="upload-text">Drop your resume here or click to browse</div>
-                <div class="file-types">PDF or TXT files (max 10MB)</div>
-                <input type="file" id="fileInput" accept=".pdf,.txt">
-            </div>
-            
-            <div class="selected-file" id="selectedFile"></div>
-            
-            <button class="analyze-button" id="analyzeButton" disabled>
-                🔥 Roast My Resume
-            </button>
-        </div>
-
-        <div class="results-section" id="resultsSection">
-            <div id="analysisSuccess" class="success-message message" style="display: none;">
-                ✅ Roast complete! Scroll down for the brutal truth...
-            </div>
-            
-            <div class="verdict">
-                <div class="decision" id="decision"></div>
-                <div class="confidence" id="confidence"></div>
-                <div class="hot-take" id="hotTake"></div>
-            </div>
-
-            <div class="score-cards">
-                <div class="score-card">
-                    <div class="score-label">Clarity</div>
-                    <div class="score-value" id="clarityScore">-</div>
-                    <div class="score-bar">
-                        <div class="score-fill" id="clarityBar"></div>
-                    </div>
-                </div>
-                <div class="score-card">
-                    <div class="score-label">Impact</div>
-                    <div class="score-value" id="impactScore">-</div>
-                    <div class="score-bar">
-                        <div class="score-fill" id="impactBar"></div>
-                    </div>
-                </div>
-                <div class="score-card">
-                    <div class="score-label">Format</div>
-                    <div class="score-value" id="formatScore">-</div>
-                    <div class="score-bar">
-                        <div class="score-fill" id="formatBar"></div>
-                    </div>
-                </div>
-                <div class="score-card">
-                    <div class="score-label">Overall</div>
-                    <div class="score-value" id="overallScore">-</div>
-                    <div class="score-bar">
-                        <div class="score-fill" id="overallBar"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="feedback-section">
-                <div class="feedback-item brutal-truth">
-                    <div class="feedback-title">
-                        <span class="feedback-icon">💣</span>
-                        The Brutal Truth
-                    </div>
-                    <div class="feedback-content" id="brutalTruth"></div>
-                </div>
-
-                <div class="feedback-item mistakes">
-                    <div class="feedback-title">
-                        <span class="feedback-icon">⚠️</span>
-                        Top Mistakes
-                    </div>
-                    <ul class="feedback-list" id="mistakesList"></ul>
-                </div>
-
-                <div class="feedback-item actionable">
-                    <div class="feedback-title">
-                        <span class="feedback-icon">🎯</span>
-                        Action Items
-                    </div>
-                    <ul class="feedback-list" id="actionList"></ul>
-                </div>
-
-                <div class="feedback-item promising">
-                    <div class="feedback-title">
-                        <span class="feedback-icon">✨</span>
-                        What's Actually Good
-                    </div>
-                    <div class="feedback-content" id="promising"></div>
-                </div>
-            </div>
-
-            <div class="action-buttons">
-                <button class="action-button share-button" id="shareButton">
-                    Share Your Roast 🔥
-                </button>
-                <button class="action-button download-button" id="downloadButton">
-                    Download Roast Card
-                </button>
-                <button class="action-button new-resume-button" id="newResumeButton">
-                    Roast Another Resume
-                </button>
-            </div>
-
-            <div class="roast-card" id="roastCard"></div>
-        </div>
-
-        <div class="gallery-section">
-            <h2 class="gallery-title">Recent Roasts 🔥</h2>
-            <div class="gallery-grid" id="galleryGrid"></div>
-        </div>
-
-        <div class="stats-section">
-            <h2 class="gallery-title">Roasting Stats</h2>
-            <div class="stats-grid" id="statsGrid">
-                <div class="stat-item">
-                    <div class="stat-value" id="totalRoasts">0</div>
-                    <div class="stat-label">Resumes Roasted</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-value" id="interviewRate">0%</div>
-                    <div class="stat-label">Interview Rate</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-value" id="avgClarity">0</div>
-                    <div class="stat-label">Avg Clarity Score</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-value" id="avgImpact">0</div>
-                    <div class="stat-label">Avg Impact Score</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="footer">
-            <p>Built with 🔥 by people who've read too many bad resumes</p>
-            <p>Remember: We roast because we care about your career</p>
-        </div>
-    </div>
-
-    <script>
-        const API_BASE = window.location.origin;
-        let currentAnalysisId = null;
-        let selectedFile = null;
-
-        // Elements
-        const uploadArea = document.getElementById('uploadArea');
-        const fileInput = document.getElementById('fileInput');
-        const selectedFileDiv = document.getElementById('selectedFile');
-        const analyzeButton = document.getElementById('analyzeButton');
-        const resultsSection = document.getElementById('resultsSection');
-        const shareButton = document.getElementById('shareButton');
-        const downloadButton = document.getElementById('downloadButton');
-        const newResumeButton = document.getElementById('newResumeButton');
-
-        // Initialize
-        loadGallery();
-        loadStats();
-
-        // File upload handling
-        uploadArea.addEventListener('click', () => fileInput.click());
         
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('dragging');
-        });
-
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('dragging');
-        });
-
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragging');
-            
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                handleFileSelect(files[0]);
+        <div id="fileInfo" class="file-info">
+            <strong>Selected:</strong> <span id="fileName"></span>
+        </div>
+        
+        <button id="analyzeButton" class="analyze-button" onclick="analyzeResume()">
+            🔥 Roast My Resume!
+        </button>
+        
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Analyzing your resume...</p>
+        </div>
+        
+        <div id="error" class="error-message"></div>
+    </section>
+    
+    <section id="results" class="results-section">
+        <!-- Results will be dynamically inserted here -->
+    </section>
+    
+    <section id="gallery" class="gallery-section">
+        <h2 class="gallery-title">Recent Roasts</h2>
+        <div id="galleryGrid" class="gallery-grid">
+            <!-- Gallery items will be loaded here -->
+        </div>
+    </section>
+    
+    <script>
+        // File handling
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                document.getElementById('fileName').textContent = file.name;
+                document.getElementById('fileInfo').style.display = 'block';
+                document.getElementById('analyzeButton').style.display = 'block';
             }
         });
+        
+        // Main analysis function
+        //
+        // This implementation improves upon the basic version by adding file size
+        // validation, constructing the API URL dynamically, verifying the server
+        // response format, and providing more descriptive error messages when
+        // something goes wrong.  These additional checks make it easier to
+        // debug connectivity issues and provide a better user experience.
+        async function analyzeResume() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
 
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                handleFileSelect(e.target.files[0]);
-            }
-        });
-
-        function handleFileSelect(file) {
-            // Allow only PDF and plain text files. The backend currently supports
-            // PDF and TXT; Word documents are not processed, so exclude them.
-            const validTypes = ['application/pdf', 'text/plain'];
-            const maxSize = 10 * 1024 * 1024; // 10MB
-
-            if (!validTypes.includes(file.type)) {
-                showError('Please upload a PDF, TXT, or Word document');
+            // Ensure a file has been selected
+            if (!file) {
+                showError('Please select a resume file');
                 return;
             }
 
-            if (file.size > maxSize) {
-                showError('File size must be less than 10MB');
+            // Enforce a maximum file size of 10MB
+            if (file.size > 10 * 1024 * 1024) {
+                showError('File too large. Maximum size is 10MB.');
                 return;
             }
 
-            selectedFile = file;
-            selectedFileDiv.innerHTML = `✅ Selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
-            analyzeButton.disabled = false;
-        }
+            // Show loading state
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('analyzeButton').disabled = true;
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('results').style.display = 'none';
 
-        // Analysis
-        analyzeButton.addEventListener('click', async () => {
-            if (!selectedFile) return;
-
-            analyzeButton.disabled = true;
-            analyzeButton.innerHTML = 'Roasting... <span class="loading"></span>';
-            resultsSection.classList.remove('show');
-
+            // Prepare form data
             const formData = new FormData();
-            formData.append('file', selectedFile);
+            formData.append('file', file);
             formData.append('is_public', 'true');
 
             try {
-                const response = await fetch(`${API_BASE}/api/analyze`, {
+                // Build the correct API URL based on the current origin
+                const apiUrl = window.location.origin + '/api/analyze';
+                console.log('Calling API:', apiUrl);
+
+                const response = await fetch(apiUrl, {
                     method: 'POST',
                     body: formData
                 });
 
+                console.log('Response status:', response.status);
+                console.log('Response type:', response.headers.get('content-type'));
+
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    // If not JSON, try to get the text to see what was returned
+                    const text = await response.text();
+                    console.error('Non-JSON response:', text);
+                    throw new Error('Server returned an invalid response. Please try again.');
+                }
+
                 const data = await response.json();
 
-                if (response.ok) {
-                    displayResults(data);
-                    document.getElementById('analysisSuccess').style.display = 'block';
-                    loadGallery(); // Refresh gallery
-                    loadStats(); // Refresh stats
-                } else {
-                    showError(data.error || 'Analysis failed');
+                if (!response.ok) {
+                    throw new Error(data.error || `Server error: ${response.status}`);
                 }
+
+                // Validate the response has expected structure
+                if (!data.verdict || !data.analysis || !data.benchmarks) {
+                    console.error('Invalid response structure:', data);
+                    throw new Error('Invalid analysis response received');
+                }
+
+                // Display results
+                displayAnalysis(data);
+
             } catch (error) {
-                console.error('Error:', error);
-                showError('Failed to analyze resume. Please try again.');
+                console.error('Analysis error:', error);
+
+                // Provide user-friendly error messages
+                let errorMessage = 'Failed to analyze resume. ';
+
+                if (error.message.includes('Failed to fetch')) {
+                    errorMessage += 'Cannot connect to server.';
+                } else if (error.message.includes('rate limit')) {
+                    errorMessage += 'Too many requests. Please try again later.';
+                } else if (error.message.includes('Invalid file type')) {
+                    errorMessage += 'Please upload a PDF, TXT, DOC, or DOCX file.';
+                } else {
+                    errorMessage += error.message || 'Please try again.';
+                }
+
+                showError(errorMessage);
+
             } finally {
-                analyzeButton.disabled = false;
-                analyzeButton.innerHTML = '🔥 Roast My Resume';
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('analyzeButton').disabled = false;
             }
-        });
-
-        function displayResults(data) {
-            currentAnalysisId = data.analysis_id;
+        }
+        
+        // Display analysis results
+        function displayAnalysis(analysis) {
+            const resultsSection = document.getElementById('results');
+            resultsSection.style.display = 'block';
+            resultsSection.innerHTML = '';
             
-            // Verdict
-            const decision = document.getElementById('decision');
-            decision.textContent = data.verdict.decision;
-            decision.className = `decision ${data.verdict.decision.toLowerCase()}`;
+            // Add verdict
+            resultsSection.innerHTML += displayVerdict(analysis);
             
-            document.getElementById('confidence').textContent = `${data.verdict.confidence}% Confidence`;
-            document.getElementById('hotTake').textContent = data.verdict.hot_take;
+            // Add scores
+            resultsSection.innerHTML += displayScores(analysis);
             
-            // Scores with animation
-            const scores = data.benchmarks;
-            animateScore('clarityScore', 'clarityBar', scores.clarity_score);
-            animateScore('impactScore', 'impactBar', scores.impact_score);
-            animateScore('formatScore', 'formatBar', scores.formatting_score);
-            animateScore('overallScore', 'overallBar', scores.overall_score);
+            // Add feedback
+            resultsSection.innerHTML += displayFeedback(analysis);
             
-            // Feedback
-            document.getElementById('brutalTruth').textContent = data.feedback.brutal_truth;
-            document.getElementById('promising').textContent = data.feedback.encouragement;
+            // Add detailed critique if available
+            if (analysis.detailed_critique) {
+                resultsSection.innerHTML += displayDetailedCritique(analysis);
+            }
             
-            // Mistakes list
-            const mistakesList = document.getElementById('mistakesList');
-            mistakesList.innerHTML = '';
-            data.analysis.mistakes.forEach(mistake => {
-                const li = document.createElement('li');
-                li.textContent = mistake;
-                mistakesList.appendChild(li);
+            // Add roast card
+            resultsSection.innerHTML += displayRoastCard(analysis);
+            
+            // Scroll to results
+            resultsSection.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        // Display verdict section
+        function displayVerdict(analysis) {
+            const verdict = analysis.verdict;
+            const decisionClass = verdict.decision === 'INTERVIEW' ? 'interview' : 'pass';
+            
+            return `
+                <div class="verdict-card">
+                    <div class="verdict-decision ${decisionClass}">
+                        ${verdict.decision}
+                    </div>
+                    <div class="confidence-badge">
+                        ${verdict.confidence}% Confidence
+                    </div>
+                    <div class="hot-take">
+                        "${verdict.hot_take}"
+                    </div>
+                    <p style="color: #999; margin-top: 10px;">
+                        First impression: ${verdict.first_impression}
+                    </p>
+                </div>
+            `;
+        }
+        
+        // Display scores
+        function displayScores(analysis) {
+            const benchmarks = analysis.benchmarks;
+            
+            return `
+                <div class="scores-grid">
+                    <div class="score-card">
+                        <div class="score-label">Clarity</div>
+                        <div class="score-value">${benchmarks.clarity_score}/10</div>
+                        <div class="score-bar">
+                            <div class="score-fill" style="width: ${benchmarks.clarity_score * 10}%"></div>
+                        </div>
+                    </div>
+                    <div class="score-card">
+                        <div class="score-label">Impact</div>
+                        <div class="score-value">${benchmarks.impact_score}/10</div>
+                        <div class="score-bar">
+                            <div class="score-fill" style="width: ${benchmarks.impact_score * 10}%"></div>
+                        </div>
+                    </div>
+                    <div class="score-card">
+                        <div class="score-label">Formatting</div>
+                        <div class="score-value">${benchmarks.formatting_score}/10</div>
+                        <div class="score-bar">
+                            <div class="score-fill" style="width: ${benchmarks.formatting_score * 10}%"></div>
+                        </div>
+                    </div>
+                    <div class="score-card">
+                        <div class="score-label">Overall</div>
+                        <div class="score-value">${benchmarks.overall_score}/10</div>
+                        <div class="score-bar">
+                            <div class="score-fill" style="width: ${benchmarks.overall_score * 10}%"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Display feedback
+        function displayFeedback(analysis) {
+            const feedback = analysis.feedback;
+            
+            let adviceHtml = '';
+            feedback.actionable_advice.forEach(advice => {
+                adviceHtml += `<li class="advice-item">${advice}</li>`;
             });
             
-            // Action items
-            const actionList = document.getElementById('actionList');
-            actionList.innerHTML = '';
-            data.feedback.actionable_advice.forEach(action => {
-                const li = document.createElement('li');
-                li.textContent = action;
-                actionList.appendChild(li);
-            });
-            
-            // Roast card
-            if (data.roast_card_url) {
-                const roastCard = document.getElementById('roastCard');
-                roastCard.innerHTML = `<img src="${data.roast_card_url}" alt="Resume Roast Card">`;
+            return `
+                <div class="feedback-section">
+                    <h2 class="feedback-title">Your Personalized Feedback</h2>
+                    
+                    <div class="brutal-truth">
+                        💣 Brutal Truth: ${feedback.brutal_truth}
+                    </div>
+                    
+                    <h3 style="color: #00cc44; margin-bottom: 15px;">✅ Action Items:</h3>
+                    <ul class="advice-list">
+                        ${adviceHtml}
+                    </ul>
+                    
+                    <div class="encouragement">
+                        💚 ${feedback.encouragement}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Display detailed critique
+        function displayDetailedCritique(analysis) {
+            if (!analysis.detailed_critique) {
+                return '';
             }
             
-            resultsSection.classList.add('show');
-            resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            const critique = analysis.detailed_critique;
+            
+            return `
+                <div class="detailed-critique-section">
+                    <div class="critique-header">
+                        <div class="critique-icon">📋</div>
+                        <div>
+                            <h2 class="critique-title">Detailed Analysis</h2>
+                            <p class="critique-subtitle">Your comprehensive resume critique</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Summary -->
+                    <div class="critique-summary-box">
+                        <p class="critique-summary-text">${critique.summary_paragraph || 'Analysis summary not available.'}</p>
+                    </div>
+                    
+                    <!-- Navigation buttons -->
+                    <div class="critique-navigation">
+                        <button class="critique-nav-button active" onclick="showCritiqueSection('all')">
+                            Show All
+                        </button>
+                        <button class="critique-nav-button" onclick="showCritiqueSection('experience')">
+                            Experience
+                        </button>
+                        <button class="critique-nav-button" onclick="showCritiqueSection('skills')">
+                            Skills
+                        </button>
+                        <button class="critique-nav-button" onclick="showCritiqueSection('formatting')">
+                            Formatting
+                        </button>
+                        <button class="critique-nav-button" onclick="showCritiqueSection('strategy')">
+                            Strategy
+                        </button>
+                    </div>
+                    
+                    <!-- Experience Critique -->
+                    <div class="critique-section" data-section="experience">
+                        <h3 class="critique-section-title">
+                            <span class="critique-section-icon">💼</span>
+                            Experience Analysis
+                        </h3>
+                        <p class="critique-text">${critique.experience_critique || 'Experience analysis not available.'}</p>
+                    </div>
+                    
+                    <!-- Skills Critique -->
+                    <div class="critique-section" data-section="skills">
+                        <h3 class="critique-section-title">
+                            <span class="critique-section-icon">🛠️</span>
+                            Skills Assessment
+                        </h3>
+                        <p class="critique-text">${critique.skills_critique || 'Skills analysis not available.'}</p>
+                    </div>
+                    
+                    <!-- Formatting Critique -->
+                    <div class="critique-section" data-section="formatting">
+                        <h3 class="critique-section-title">
+                            <span class="critique-section-icon">🎨</span>
+                            Formatting & Design
+                        </h3>
+                        <p class="critique-text">${critique.formatting_critique || 'Formatting analysis not available.'}</p>
+                    </div>
+                    
+                    <!-- Strategy Critique -->
+                    <div class="critique-section" data-section="strategy">
+                        <h3 class="critique-section-title">
+                            <span class="critique-section-icon">🎯</span>
+                            Strategic Positioning
+                        </h3>
+                        <p class="critique-text">${critique.strategy_critique || 'Strategy analysis not available.'}</p>
+                    </div>
+                </div>
+            `;
         }
-
-        function animateScore(scoreId, barId, score) {
-            const scoreElement = document.getElementById(scoreId);
-            const barElement = document.getElementById(barId);
+        
+        // Navigation function for critique sections
+        function showCritiqueSection(section) {
+            const sections = document.querySelectorAll('.critique-section');
+            const buttons = document.querySelectorAll('.critique-nav-button');
             
-            // Animate number
-            let current = 0;
-            const increment = score / 20;
-            const timer = setInterval(() => {
-                current += increment;
-                if (current >= score) {
-                    current = score;
-                    clearInterval(timer);
-                }
-                scoreElement.textContent = `${Math.round(current)}/10`;
-            }, 50);
+            // Remove active class from all buttons
+            buttons.forEach(btn => btn.classList.remove('active'));
             
-            // Animate bar
-            setTimeout(() => {
-                barElement.style.width = `${score * 10}%`;
-            }, 100);
-        }
-
-        // Share functionality
-        shareButton.addEventListener('click', async () => {
-            const shareData = {
-                title: 'My Resume Roast',
-                text: `I got my resume roasted by AI! Check out the results.`,
-                // Share a link to the API endpoint for this analysis. You can
-                // create a pretty landing page later.
-                url: `${window.location.origin}/api/analysis/${currentAnalysisId}`
-            };
-
-            try {
-                if (navigator.share) {
-                    await navigator.share(shareData);
-                } else {
-                    // Fallback - copy to clipboard
-                    await navigator.clipboard.writeText(shareData.url);
-                    showSuccess('Link copied to clipboard!');
-                }
-            } catch (err) {
-                console.error('Error sharing:', err);
-            }
-        });
-
-        // Download roast card
-        downloadButton.addEventListener('click', async () => {
-            if (!currentAnalysisId) return;
-            
-            try {
-                const response = await fetch(`${API_BASE}/api/download-roast/${currentAnalysisId}`);
+            if (section === 'all') {
+                // Show all sections
+                sections.forEach(sec => sec.style.display = 'block');
+                buttons[0].classList.add('active');
+            } else {
+                // Show only selected section
+                sections.forEach(sec => {
+                    if (sec.getAttribute('data-section') === section) {
+                        sec.style.display = 'block';
+                    } else {
+                        sec.style.display = 'none';
+                    }
+                });
                 
-                if (response.ok) {
-                    const blob = await response.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `resume_roast_${currentAnalysisId.substring(0, 8)}.png`;
-                    document.body.appendChild(a);
-                    a.click();
-                    window.URL.revokeObjectURL(url);
-                    document.body.removeChild(a);
-                } else {
-                    showError('Failed to download roast card');
-                }
-            } catch (error) {
-                console.error('Error downloading:', error);
-                showError('Failed to download roast card');
-            }
-        });
-
-        // New resume
-        newResumeButton.addEventListener('click', () => {
-            resultsSection.classList.remove('show');
-            document.getElementById('analysisSuccess').style.display = 'none';
-            selectedFile = null;
-            selectedFileDiv.innerHTML = '';
-            fileInput.value = '';
-            analyzeButton.disabled = true;
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        });
-
-        // Load gallery
-        async function loadGallery() {
-            try {
-                const response = await fetch(`${API_BASE}/api/gallery`);
-                if (response.ok) {
-                    const analyses = await response.json();
-                    displayGallery(analyses);
-                }
-            } catch (error) {
-                console.error('Error loading gallery:', error);
+                // Add active class to clicked button
+                event.target.classList.add('active');
             }
         }
-
-        function displayGallery(analyses) {
-            const galleryGrid = document.getElementById('galleryGrid');
-            galleryGrid.innerHTML = '';
+        
+        // Display roast card
+        function displayRoastCard(analysis) {
+            if (!analysis.roast_card_url) {
+                return '';
+            }
             
-            analyses.slice(0, 6).forEach(analysis => {
-                const item = document.createElement('div');
-                item.className = 'gallery-item';
-                item.innerHTML = `
-                    <div class="gallery-decision ${analysis.decision.toLowerCase()}">${analysis.decision} (${analysis.confidence}%)</div>
-                    <div class="gallery-hot-take">"${analysis.hot_take}"</div>
-                    <div class="gallery-score">Overall: ${analysis.overall_score}/10</div>
-                `;
-                galleryGrid.appendChild(item);
-            });
+            return `
+                <div class="roast-card-section">
+                    <h2 class="roast-card-title">Your Roast Card</h2>
+                    <img src="${analysis.roast_card_url}" alt="Resume Roast Card" class="roast-card-image">
+                    
+                    <div class="share-buttons">
+                        <a href="#" onclick="downloadRoastCard('${analysis.analysis_id}')" class="share-button">
+                            📥 Download
+                        </a>
+                        <a href="#" onclick="shareOnTwitter('${analysis.verdict.hot_take}')" class="share-button">
+                            🐦 Share on Twitter
+                        </a>
+                        <a href="#" onclick="shareOnLinkedIn('${analysis.analysis_id}')" class="share-button">
+                            💼 Share on LinkedIn
+                        </a>
+                    </div>
+                </div>
+            `;
         }
-
-        // Load stats
-        async function loadStats() {
-            try {
-                const response = await fetch(`${API_BASE}/api/stats`);
-                if (response.ok) {
-                    const stats = await response.json();
-                    displayStats(stats);
-                }
-            } catch (error) {
-                console.error('Error loading stats:', error);
-            }
-        }
-
-        function displayStats(stats) {
-            document.getElementById('totalRoasts').textContent = stats.total_analyses.toLocaleString();
-            document.getElementById('interviewRate').textContent = `${stats.interview_rate}%`;
-
-            /*
-             * The backend currently returns only overall average score (avg_overall_score)
-             * but not per-dimension averages. Use avg_scores if present; otherwise
-             * fall back to avg_overall_score so the UI still displays something.
-             */
-            let clarity = stats.avg_scores && stats.avg_scores.clarity;
-            let impact = stats.avg_scores && stats.avg_scores.impact;
-            if (clarity === undefined) clarity = stats.avg_overall_score;
-            if (impact === undefined) impact = stats.avg_overall_score;
-            document.getElementById('avgClarity').textContent = clarity;
-            document.getElementById('avgImpact').textContent = impact;
-        }
-
+        
         // Helper functions
         function showError(message) {
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'error-message message';
-            errorDiv.textContent = `❌ ${message}`;
-            document.querySelector('.upload-section').insertBefore(errorDiv, document.querySelector('.upload-area'));
-            setTimeout(() => errorDiv.remove(), 5000);
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
         }
-
-        function showSuccess(message) {
-            const successDiv = document.createElement('div');
-            successDiv.className = 'success-message message';
-            successDiv.textContent = `✅ ${message}`;
-            document.querySelector('.results-section').insertBefore(successDiv, document.querySelector('.verdict'));
-            setTimeout(() => successDiv.remove(), 5000);
+        
+        function downloadRoastCard(analysisId) {
+            window.open(`/api/download-roast/${analysisId}`, '_blank');
         }
+        
+        function shareOnTwitter(hotTake) {
+            const text = encodeURIComponent(`Just got my resume roasted by AI: "${hotTake}" 🔥 Try it at resumeroaster.ai`);
+            window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
+        }
+        
+        function shareOnLinkedIn(analysisId) {
+            const url = encodeURIComponent(`https://resumeroaster.ai/analysis/${analysisId}`);
+            window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank');
+        }
+        
+        // Load gallery on page load
+        async function loadGallery() {
+            try {
+                const response = await fetch('/api/gallery');
+                const analyses = await response.json();
+                
+                const galleryGrid = document.getElementById('galleryGrid');
+                galleryGrid.innerHTML = '';
+                
+                analyses.slice(0, 6).forEach(item => {
+                    const galleryItem = document.createElement('div');
+                    galleryItem.className = 'gallery-item';
+                    galleryItem.innerHTML = `
+                        <div class="gallery-hot-take">"${item.hot_take}"</div>
+                        <div class="gallery-score">Score: ${item.overall_score}/10</div>
+                        <div style="color: #666; font-size: 0.9em; margin-top: 10px;">
+                            ${item.decision} • ${new Date(item.created_at).toLocaleDateString()}
+                        </div>
+                    `;
+                    galleryItem.onclick = () => window.location.href = `/analysis/${item.analysis_id}`;
+                    galleryGrid.appendChild(galleryItem);
+                });
+            } catch (error) {
+                console.error('Failed to load gallery:', error);
+            }
+        }
+        
+        // Load gallery when page loads
+        window.addEventListener('load', loadGallery);
     </script>
 </body>
 </html>

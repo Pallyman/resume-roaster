@@ -93,6 +93,7 @@ class ResumeAnalysis:
     analysis: Dict[str, Any]
     feedback: Dict[str, Any]
     benchmarks: Dict[str, Any]
+    detailed_critique: Dict[str, str]  # Added for enhanced analysis
     roast_card_url: str
     created_at: str
     resume_type: str = "general"
@@ -346,9 +347,19 @@ class AIProvider:
     
     def analyze_resume(self, content: str, resume_type: str = "general") -> Dict[str, Any]:
         raise NotImplementedError
+    
+    def _get_default_critique(self) -> Dict[str, str]:
+        """Default critique if AI doesn't provide detailed analysis"""
+        return {
+            "summary_paragraph": "This resume needs significant work to stand out in today's competitive job market. While the candidate has experience, the presentation lacks impact and fails to tell a compelling career story. The overall impression is of a generic, forgettable application that would likely get lost in the pile.",
+            "experience_critique": "The work experience section reads like a copy-paste of job descriptions rather than a showcase of achievements. There's no quantifiable impact, no context for the scope of work, and no clear progression story. Each role needs to be rewritten to focus on what was accomplished, not just what was done daily.",
+            "skills_critique": "The skills section is a buzzword graveyard without any evidence to back up the claims. Listing every technology you've ever heard of doesn't make you an expert. Focus on core competencies and demonstrate proficiency through your experience bullets.",
+            "formatting_critique": "The formatting is serviceable but uninspiring. While it's readable, it does nothing to guide the eye to key information or create visual hierarchy. Consider using better spacing, consistent bullet points, and strategic bold text to highlight achievements.",
+            "strategy_critique": "This resume lacks strategic focus and tries to be everything to everyone. There's no clear narrative about what type of role you're targeting or what unique value you bring. Pick a lane, tailor your content to that specific goal, and build a coherent story that makes the hiring manager say 'this is exactly who we need.'"
+        }
 
 class DeepseekProvider(AIProvider):
-    """Deepseek AI provider"""
+    """Deepseek AI provider with enhanced analysis"""
     
     def __init__(self):
         self.api_key = app.config['DEEPSEEK_API_KEY']
@@ -366,7 +377,7 @@ class DeepseekProvider(AIProvider):
             'Content-Type': 'application/json'
         }
         
-        system_prompt = self._get_system_prompt()
+        system_prompt = self._get_enhanced_system_prompt()
         user_prompt = f"Roast this {resume_type} resume:\n\n{content[:6000]}"
         
         data = {
@@ -376,7 +387,7 @@ class DeepseekProvider(AIProvider):
                 {"role": "user", "content": user_prompt}
             ],
             "temperature": 0.8,
-            "max_tokens": 2000
+            "max_tokens": 3000  # Increased for detailed analysis
         }
         
         try:
@@ -404,8 +415,8 @@ class DeepseekProvider(AIProvider):
             logger.error(f"Deepseek API error: {e}")
             raise
     
-    def _get_system_prompt(self) -> str:
-        """Get the system prompt for resume roasting"""
+    def _get_enhanced_system_prompt(self) -> str:
+        """Get the enhanced system prompt for detailed resume analysis"""
         return """You are a brutally honest hiring manager who roasts resumes with tough love.
         Be harsh but constructive, funny but helpful. You've seen thousands of resumes.
 
@@ -442,10 +453,18 @@ class DeepseekProvider(AIProvider):
                 "impact_score": 1-10,
                 "formatting_score": 1-10,
                 "overall_score": 1-10
+            },
+            "detailed_critique": {
+                "summary_paragraph": "A comprehensive 3-4 sentence overview roasting their resume while providing constructive insight about their overall approach, what's working, what's failing, and the main impression they're giving to hiring managers.",
+                "experience_critique": "A detailed 4-5 sentence paragraph analyzing their work experience section. Be specific about how they present their roles, whether they show impact vs just listing duties, if their progression makes sense, and what story their experience tells. Call out specific examples from their resume.",
+                "skills_critique": "A 3-4 sentence paragraph about their skills section. Roast any buzzword bingo, evaluate if skills match their experience level, identify missing crucial skills for their field, and assess if they're backing up skills with evidence.",
+                "formatting_critique": "A 3-4 sentence paragraph about the visual presentation, readability, and structure. Be specific about what makes it easy or hard to scan, any formatting disasters, and how the design helps or hurts their message.",
+                "strategy_critique": "A 4-5 sentence strategic analysis of their overall positioning. What type of role are they targeting? Does their resume support that goal? What's their unique value proposition? How could they better position themselves? End with specific advice."
             }
         }
 
-        Be specific, reference their actual content. Make the roast memorable but professional."""
+        Be specific, reference their actual content. Make the roast memorable but professional.
+        The detailed critiques should be meaty paragraphs that give real value, not just one-liners."""
     
     def _parse_response(self, content: str) -> Dict[str, Any]:
         """Parse JSON from AI response"""
@@ -456,7 +475,13 @@ class DeepseekProvider(AIProvider):
             
             if start != -1 and end > start:
                 json_str = content[start:end]
-                return json.loads(json_str)
+                parsed = json.loads(json_str)
+                
+                # Ensure detailed_critique exists even if AI doesn't provide it
+                if 'detailed_critique' not in parsed:
+                    parsed['detailed_critique'] = self._get_default_critique()
+                
+                return parsed
             
             raise ValueError("No valid JSON found in response")
         except Exception as e:
@@ -480,7 +505,7 @@ class OpenAIProvider(AIProvider):
         raise NotImplementedError("OpenAI provider not implemented yet")
 
 class MockProvider(AIProvider):
-    """Mock provider for testing"""
+    """Mock provider for testing with detailed critiques"""
     
     def analyze_resume(self, content: str, resume_type: str = "general") -> Dict[str, Any]:
         """Return mock analysis for testing"""
@@ -520,6 +545,13 @@ class MockProvider(AIProvider):
                 "impact_score": 3,
                 "formatting_score": 6,
                 "overall_score": 4
+            },
+            "detailed_critique": {
+                "summary_paragraph": "This resume is a masterclass in mediocrity - it checks all the boxes of what a resume should have while completely failing to make any memorable impression. You've managed to take what could be interesting experience and sanitize it into corporate speak that sounds like every other resume in the pile. The lack of personality, metrics, or unique perspective makes this document as exciting as watching paint dry in a beige room.",
+                "experience_critique": "Your experience section is where good stories go to die. Instead of showcasing your wins, you've written a series of job descriptions that could apply to literally anyone in your role. 'Responsible for managing projects' tells me nothing - did you save the company money? Launch something cool? Improve a process? Every bullet point reads like you copied it from a generic job posting. You need to transform this from a list of duties into a highlight reel of achievements with numbers, context, and impact.",
+                "skills_critique": "The skills section is giving 'I watched a YouTube tutorial once' energy. You've listed every buzzword in your industry without any indication of proficiency level or how you've actually applied these skills. Claiming you know 'Microsoft Office' in 2024 is like saying you can use a telephone. Focus on the skills that differentiate you and back them up with examples in your experience section.",
+                "formatting_critique": "While your formatting isn't a complete disaster, it's about as exciting as plain oatmeal. The wall of text makes my eyes glaze over, and there's no visual hierarchy to guide me to the important stuff. You need better use of white space, consistent formatting, and strategic bold text to highlight key achievements. Right now it looks like you hit 'export to PDF' from a Word doc you made in 2003.",
+                "strategy_critique": "Your biggest strategic failure is trying to be a Swiss Army knife when the job needs a scalpel. This resume tries to appeal to everyone and ends up interesting no one. You haven't identified what makes you unique or what specific value you bring. Pick a target role, understand what that hiring manager needs, and ruthlessly tailor every line to prove you're the solution to their problems. Right now, you're just another resume in a stack of hundreds."
             }
         }
 
@@ -859,6 +891,10 @@ def analyze_resume():
             else:
                 return jsonify({"error": f"Analysis failed: {str(e)}"}), 500
         
+        # Ensure detailed_critique exists
+        if 'detailed_critique' not in analysis_data:
+            analysis_data['detailed_critique'] = MockProvider()._get_default_critique()
+        
         # Generate analysis ID
         analysis_id = str(uuid.uuid4())
         
@@ -875,6 +911,7 @@ def analyze_resume():
             analysis=analysis_data['analysis'],
             feedback=analysis_data['feedback'],
             benchmarks=analysis_data['benchmarks'],
+            detailed_critique=analysis_data.get('detailed_critique', {}),
             roast_card_url=roast_url,
             created_at=datetime.now().isoformat(),
             resume_type=resume_type,
