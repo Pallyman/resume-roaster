@@ -19,7 +19,7 @@ import re
 from functools import wraps
 import time
 
-from flask import Flask, request, jsonify, send_file, make_response
+from flask import Flask, request, jsonify, send_file, make_response, render_template
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -757,21 +757,27 @@ class RoastCardGenerator:
 # API ROUTES
 # ============================================================================
 
-@app.route('/')
-def index():
-    """Health check / basic info"""
-    return jsonify({
-        "service": "Resume Roaster API",
-        "version": "2.0",
-        "status": "operational",
-        "endpoints": {
-            "POST /api/analyze": "Analyze a resume",
-            "GET /api/analysis/<id>": "Get specific analysis",
-            "GET /api/gallery": "Get recent public analyses",
-            "GET /api/stats": "Get platform statistics",
-            "GET /health": "Health check"
-        }
-    })
+@app.route("/")
+def home():
+    """Serve the frontend or fallback to API info"""
+    # Try to render the main index.html template from the templates folder.
+    try:
+        return render_template("index.html")
+    except Exception:
+        # If the template is missing or rendering fails, fall back to basic API description.
+        return jsonify({
+            "service": "Resume Roaster API",
+            "version": "2.0",
+            "status": "operational",
+            "frontend": "Template not found - add index.html to templates/ folder",
+            "endpoints": {
+                "POST /api/analyze": "Analyze a resume",
+                "GET /api/analysis/<id>": "Get specific analysis",
+                "GET /api/gallery": "Get recent public analyses",
+                "GET /api/stats": "Get platform statistics",
+                "GET /health": "Health check"
+            }
+        })
 
 @app.route('/health')
 def health():
