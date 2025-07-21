@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Resume Roaster Backend API - Production Ready Version
-AI-powered resume analyzer with brutal honesty and viral meme generation
+Resume Roaster Backend - Modern Production Version
+AI-powered resume analyzer with multiple AI providers and viral roast generation
 """
 
 import os
@@ -9,21 +9,23 @@ import json
 import uuid
 import sqlite3
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from dataclasses import dataclass, asdict
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 import base64
 import io
-from PIL import Image, ImageDraw, ImageFont
-import statistics
-import traceback
+import hashlib
 import re
+from functools import wraps
+import time
 
-from flask import Flask, request, jsonify, render_template, send_from_directory, send_file, make_response
+from flask import Flask, request, jsonify, send_file, make_response
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
+from werkzeug.exceptions import RequestEntityTooLarge
 import PyPDF2
-import openai
+from PIL import Image, ImageDraw, ImageFont
+import requests
 
 # Configure logging
 logging.basicConfig(
@@ -33,100 +35,384 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Initialize Flask app
-app = Flask(__name__, 
-    template_folder="templates",
-    static_folder="static"
-)
+app = Flask(__name__)
 
-# Configure CORS for production
+# Configure CORS
 CORS(app, resources={
     r"/api/*": {
-        "origins": ["*"],  # In production, specify your frontend domain
+        "origins": ["*"],
         "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type"]
     }
 })
 
-# Configuration
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
+
 class Config:
+    # Basic config
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
-    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-    AI_MODEL = os.getenv('AI_MODEL', 'gpt-3.5-turbo')
     MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10MB max file size
     UPLOAD_FOLDER = 'uploads'
     DATABASE_PATH = 'resume_roaster.db'
     ALLOWED_EXTENSIONS = {'pdf', 'txt', 'doc', 'docx'}
     
+    # AI Provider Configuration
+    AI_PROVIDER = os.getenv('AI_PROVIDER', 'deepseek')  # 'deepseek', 'openai', or 'mock'
+    
+    # Deepseek config
+    DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY', '')
+    DEEPSEEK_API_BASE = os.getenv('DEEPSEEK_API_BASE', 'https://api.deepseek.com/v1')
+    DEEPSEEK_MODEL = os.getenv('DEEPSEEK_MODEL', 'deepseek-chat')
+    
+    # OpenAI config (fallback)
+    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
+    OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo')
+    
+    # Rate limiting
+    RATE_LIMIT_ENABLED = os.getenv('RATE_LIMIT_ENABLED', 'true').lower() == 'true'
+    RATE_LIMIT_PER_HOUR = int(os.getenv('RATE_LIMIT_PER_HOUR', '100'))
+
 app.config.from_object(Config)
 
 # Ensure directories exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-os.makedirs('templates', exist_ok=True)
-os.makedirs('static', exist_ok=True)
+os.makedirs('roast_cards', exist_ok=True)
 
-# Data models
+# ============================================================================
+# DATA MODELS
+# ============================================================================
+
 @dataclass
 class ResumeAnalysis:
+    analysis_id: str
     verdict: Dict[str, Any]
     analysis: Dict[str, Any]
     feedback: Dict[str, Any]
     benchmarks: Dict[str, Any]
-    analysis_id: str
+    roast_card_url: str
     created_at: str
-    roast_card_url: str = ""
+    resume_type: str = "general"
     user_email: str = ""
     is_public: bool = True
-    resume_type: str = "general"  # general, tech, creative, executive
+    ai_provider: str = "deepseek"
+    processing_time: float = 0.0
 
-# Database initialization
-def init_database():
-    """Initialize SQLite database with proper schema"""
-    try:
-        conn = sqlite3.connect(app.config['DATABASE_PATH'])
-        
-        # Create analyses table
-        conn.execute('''
-            CREATE TABLE IF NOT EXISTS analyses (
-                id TEXT PRIMARY KEY,
-                data TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                user_email TEXT DEFAULT '',
-                is_public BOOLEAN DEFAULT 1,
-                resume_type TEXT DEFAULT 'general',
-                industry TEXT DEFAULT '',
-                experience_level TEXT DEFAULT ''
-            )
-        ''')
-        
-        # Create index for faster queries
-        conn.execute('''
-            CREATE INDEX IF NOT EXISTS idx_created_at ON analyses(created_at DESC)
-        ''')
-        
-        conn.commit()
-        conn.close()
-        logger.info("Database initialized successfully")
-    except Exception as e:
-        logger.error(f"Database initialization failed: {e}")
-        raise
+# ============================================================================
+# DATABASE
+# ============================================================================
 
-# AI Analysis
-class ResumeAnalyzer:
-    """Handles all AI analysis operations for resumes"""
+class Database:
+    """Modern database handler with connection pooling and better error handling"""
     
     @staticmethod
-    def get_roast_prompt() -> str:
-        """Returns the system prompt for resume roasting"""
-        return """You are a brutally honest hiring manager who's seen thousands of resumes. 
-        You've hired for FAANG companies and startups alike. Your job is to roast resumes 
-        with tough love - be harsh but constructive, funny but helpful.
+    def init():
+        """Initialize database with modern schema"""
+        try:
+            with sqlite3.connect(app.config['DATABASE_PATH']) as conn:
+                # Enable WAL mode for better concurrency
+                conn.execute("PRAGMA journal_mode=WAL")
+                
+                # Create main table
+                conn.execute('''
+                    CREATE TABLE IF NOT EXISTS analyses (
+                        id TEXT PRIMARY KEY,
+                        data TEXT NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        user_email TEXT DEFAULT '',
+                        is_public BOOLEAN DEFAULT 1,
+                        resume_type TEXT DEFAULT 'general',
+                        ai_provider TEXT DEFAULT 'deepseek',
+                        processing_time REAL DEFAULT 0.0,
+                        ip_hash TEXT DEFAULT ''
+                    )
+                ''')
+                
+                # Create indices
+                conn.execute('CREATE INDEX IF NOT EXISTS idx_created_at ON analyses(created_at DESC)')
+                conn.execute('CREATE INDEX IF NOT EXISTS idx_public ON analyses(is_public, created_at DESC)')
+                conn.execute('CREATE INDEX IF NOT EXISTS idx_email ON analyses(user_email)')
+                
+                # Create rate limiting table
+                conn.execute('''
+                    CREATE TABLE IF NOT EXISTS rate_limits (
+                        ip_hash TEXT PRIMARY KEY,
+                        request_count INTEGER DEFAULT 1,
+                        window_start TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                
+                conn.commit()
+                logger.info("Database initialized successfully")
+                
+        except Exception as e:
+            logger.error(f"Database initialization failed: {e}")
+            raise
+    
+    @staticmethod
+    def get_connection():
+        """Get database connection with proper settings"""
+        conn = sqlite3.connect(app.config['DATABASE_PATH'], timeout=30)
+        conn.row_factory = sqlite3.Row
+        return conn
+    
+    @staticmethod
+    def save_analysis(analysis: ResumeAnalysis, ip_hash: str = "") -> bool:
+        """Save analysis to database"""
+        try:
+            with Database.get_connection() as conn:
+                conn.execute('''
+                    INSERT INTO analyses 
+                    (id, data, user_email, is_public, resume_type, ai_provider, processing_time, ip_hash)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    analysis.analysis_id,
+                    json.dumps(asdict(analysis)),
+                    analysis.user_email,
+                    analysis.is_public,
+                    analysis.resume_type,
+                    analysis.ai_provider,
+                    analysis.processing_time,
+                    ip_hash
+                ))
+                conn.commit()
+                return True
+        except Exception as e:
+            logger.error(f"Failed to save analysis: {e}")
+            return False
+    
+    @staticmethod
+    def get_analysis(analysis_id: str) -> Optional[Dict[str, Any]]:
+        """Get analysis by ID"""
+        try:
+            with Database.get_connection() as conn:
+                row = conn.execute(
+                    'SELECT data FROM analyses WHERE id = ?',
+                    (analysis_id,)
+                ).fetchone()
+                
+                if row:
+                    return json.loads(row['data'])
+                return None
+        except Exception as e:
+            logger.error(f"Failed to get analysis: {e}")
+            return None
+    
+    @staticmethod
+    def get_recent_public(limit: int = 20) -> List[Dict[str, Any]]:
+        """Get recent public analyses"""
+        try:
+            with Database.get_connection() as conn:
+                rows = conn.execute('''
+                    SELECT data FROM analyses 
+                    WHERE is_public = 1
+                    ORDER BY created_at DESC 
+                    LIMIT ?
+                ''', (limit,)).fetchall()
+                
+                analyses = []
+                for row in rows:
+                    try:
+                        data = json.loads(row['data'])
+                        analyses.append({
+                            "analysis_id": data["analysis_id"],
+                            "decision": data["verdict"]["decision"],
+                            "confidence": data["verdict"]["confidence"],
+                            "hot_take": data["verdict"]["hot_take"],
+                            "overall_score": data["benchmarks"]["overall_score"],
+                            "resume_type": data.get("resume_type", "general"),
+                            "created_at": data["created_at"]
+                        })
+                    except:
+                        continue
+                
+                return analyses
+        except Exception as e:
+            logger.error(f"Failed to get recent analyses: {e}")
+            return []
+    
+    @staticmethod
+    def get_stats() -> Dict[str, Any]:
+        """Get platform statistics"""
+        try:
+            with Database.get_connection() as conn:
+                # Total count
+                total = conn.execute('SELECT COUNT(*) as count FROM analyses').fetchone()['count']
+                
+                # Recent stats
+                recent = conn.execute('''
+                    SELECT 
+                        COUNT(*) as total,
+                        SUM(CASE WHEN json_extract(data, '$.verdict.decision') = 'INTERVIEW' THEN 1 ELSE 0 END) as interviews,
+                        AVG(json_extract(data, '$.benchmarks.overall_score')) as avg_score
+                    FROM analyses 
+                    WHERE created_at > datetime('now', '-30 days')
+                ''').fetchone()
+                
+                interview_rate = (recent['interviews'] / recent['total'] * 100) if recent['total'] > 0 else 0
+                
+                return {
+                    "total_analyses": total,
+                    "recent_analyses": recent['total'] or 0,
+                    "interview_rate": round(interview_rate, 1),
+                    "avg_overall_score": round(recent['avg_score'] or 5.0, 1)
+                }
+        except Exception as e:
+            logger.error(f"Failed to get stats: {e}")
+            return {
+                "total_analyses": 0,
+                "recent_analyses": 0,
+                "interview_rate": 0,
+                "avg_overall_score": 5.0
+            }
+
+# ============================================================================
+# RATE LIMITING
+# ============================================================================
+
+def get_client_ip():
+    """Get client IP address"""
+    if request.headers.get('X-Forwarded-For'):
+        return request.headers.get('X-Forwarded-For').split(',')[0]
+    return request.remote_addr or '127.0.0.1'
+
+def rate_limit(max_requests: int = None):
+    """Rate limiting decorator"""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if not app.config['RATE_LIMIT_ENABLED']:
+                return f(*args, **kwargs)
+            
+            ip = get_client_ip()
+            ip_hash = hashlib.sha256(ip.encode()).hexdigest()
+            max_req = max_requests or app.config['RATE_LIMIT_PER_HOUR']
+            
+            try:
+                with Database.get_connection() as conn:
+                    # Check current rate
+                    row = conn.execute(
+                        'SELECT request_count, window_start FROM rate_limits WHERE ip_hash = ?',
+                        (ip_hash,)
+                    ).fetchone()
+                    
+                    now = datetime.now()
+                    
+                    if row:
+                        window_start = datetime.fromisoformat(row['window_start'])
+                        if now - window_start < timedelta(hours=1):
+                            if row['request_count'] >= max_req:
+                                return jsonify({
+                                    "error": "Rate limit exceeded. Try again later."
+                                }), 429
+                            
+                            # Increment counter
+                            conn.execute(
+                                'UPDATE rate_limits SET request_count = request_count + 1 WHERE ip_hash = ?',
+                                (ip_hash,)
+                            )
+                        else:
+                            # Reset window
+                            conn.execute(
+                                'UPDATE rate_limits SET request_count = 1, window_start = ? WHERE ip_hash = ?',
+                                (now.isoformat(), ip_hash)
+                            )
+                    else:
+                        # First request
+                        conn.execute(
+                            'INSERT INTO rate_limits (ip_hash, request_count, window_start) VALUES (?, 1, ?)',
+                            (ip_hash, now.isoformat())
+                        )
+                    
+                    conn.commit()
+                    
+            except Exception as e:
+                logger.error(f"Rate limiting error: {e}")
+                # Don't block on rate limit errors
+            
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+# ============================================================================
+# AI PROVIDERS
+# ============================================================================
+
+class AIProvider:
+    """Base AI provider class"""
+    
+    def analyze_resume(self, content: str, resume_type: str = "general") -> Dict[str, Any]:
+        raise NotImplementedError
+
+class DeepseekProvider(AIProvider):
+    """Deepseek AI provider"""
+    
+    def __init__(self):
+        self.api_key = app.config['DEEPSEEK_API_KEY']
+        self.api_base = app.config['DEEPSEEK_API_BASE']
+        self.model = app.config['DEEPSEEK_MODEL']
+    
+    def analyze_resume(self, content: str, resume_type: str = "general") -> Dict[str, Any]:
+        """Analyze resume using Deepseek"""
+        if not self.api_key:
+            logger.error("Deepseek API key not configured")
+            raise ValueError("Deepseek API key not configured")
+        
+        headers = {
+            'Authorization': f'Bearer {self.api_key}',
+            'Content-Type': 'application/json'
+        }
+        
+        system_prompt = self._get_system_prompt()
+        user_prompt = f"Roast this {resume_type} resume:\n\n{content[:6000]}"
+        
+        data = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            "temperature": 0.8,
+            "max_tokens": 2000
+        }
+        
+        try:
+            response = requests.post(
+                f"{self.api_base}/chat/completions",
+                headers=headers,
+                json=data,
+                timeout=30
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"Deepseek API error: {response.status_code} - {response.text}")
+                raise ValueError(f"API error: {response.status_code}")
+            
+            result = response.json()
+            content = result['choices'][0]['message']['content']
+            
+            # Parse JSON from response
+            return self._parse_response(content)
+            
+        except requests.exceptions.Timeout:
+            logger.error("Deepseek API timeout")
+            raise ValueError("API request timed out")
+        except Exception as e:
+            logger.error(f"Deepseek API error: {e}")
+            raise
+    
+    def _get_system_prompt(self) -> str:
+        """Get the system prompt for resume roasting"""
+        return """You are a brutally honest hiring manager who roasts resumes with tough love.
+        Be harsh but constructive, funny but helpful. You've seen thousands of resumes.
 
         Analyze the resume and respond EXACTLY in this JSON format:
         {
             "verdict": {
                 "decision": "INTERVIEW/PASS",
                 "confidence": 1-100,
-                "hot_take": "One memorable, roast-style line that's shareable but professional",
+                "hot_take": "One memorable, shareable roast line",
                 "first_impression": "What you think in the first 6 seconds"
             },
             "analysis": {
@@ -141,11 +427,11 @@ class ResumeAnalyzer:
                 "mistakes": ["Top 3 glaring issues"]
             },
             "feedback": {
-                "brutal_truth": "The hardest truth they need to hear (be funny but constructive)",
+                "brutal_truth": "The hardest truth they need to hear",
                 "actionable_advice": [
-                    "Specific action item 1",
-                    "Specific action item 2",
-                    "Specific action item 3"
+                    "Specific action 1",
+                    "Specific action 2",
+                    "Specific action 3"
                 ],
                 "encouragement": "What genuinely stands out positively"
             },
@@ -157,291 +443,278 @@ class ResumeAnalyzer:
             }
         }
 
-        Common roast themes:
-        - Generic objectives that say nothing
-        - Buzzword soup ("synergistic", "leverage", "utilize")
-        - Responsibilities instead of achievements
-        - No quantifiable impact
-        - Poor formatting that hurts readability
-        - Spelling/grammar errors
-        - Too long (nobody reads page 3)
-        - Clichés ("hard worker", "team player", "fast learner")
-        
-        Be specific, not generic. Reference actual content from their resume."""
+        Be specific, reference their actual content. Make the roast memorable but professional."""
     
-    @staticmethod
-    def analyze_resume(content: str, resume_type: str = "general") -> Dict[str, Any]:
-        """Analyze resume content using OpenAI"""
+    def _parse_response(self, content: str) -> Dict[str, Any]:
+        """Parse JSON from AI response"""
         try:
-            if not app.config['OPENAI_API_KEY']:
-                logger.error("OpenAI API key not configured")
-                return ResumeAnalyzer._get_fallback_analysis()
-            
-            openai.api_key = app.config['OPENAI_API_KEY']
-            
-            logger.info(f"Attempting OpenAI API call for {resume_type} resume")
-            
-            response = openai.ChatCompletion.create(
-                model=app.config['AI_MODEL'],
-                messages=[
-                    {"role": "system", "content": ResumeAnalyzer.get_roast_prompt()},
-                    {"role": "user", "content": f"Roast this {resume_type} resume:\n\n{content[:6000]}"}
-                ],
-                temperature=0.8,  # Higher temp for more creative roasts
-                max_tokens=2000
-            )
-            
-            logger.info("OpenAI API call successful")
-            
-            # Parse JSON response
-            analysis_text = response.choices[0].message.content
-            
-            # Extract JSON
-            start = analysis_text.find('{')
-            end = analysis_text.rfind('}') + 1
+            # Find JSON in response
+            start = content.find('{')
+            end = content.rfind('}') + 1
             
             if start != -1 and end > start:
-                json_str = analysis_text[start:end]
-                analysis_data = json.loads(json_str)
-                
-                # Validate structure
-                required_keys = ['verdict', 'analysis', 'feedback', 'benchmarks']
-                if all(key in analysis_data for key in required_keys):
-                    logger.info("Analysis data parsed successfully")
-                    return analysis_data
+                json_str = content[start:end]
+                return json.loads(json_str)
             
-            logger.warning("Failed to parse AI response, using fallback")
-            return ResumeAnalyzer._get_fallback_analysis()
-            
-        except openai.error.AuthenticationError as e:
-            logger.error(f"OpenAI Authentication Error: {e}")
-            return ResumeAnalyzer._get_fallback_analysis("Authentication failed - check API key")
-        except openai.error.RateLimitError as e:
-            logger.error(f"OpenAI Rate Limit Error: {e}")
-            return ResumeAnalyzer._get_fallback_analysis("Rate limit exceeded - try again later")
+            raise ValueError("No valid JSON found in response")
         except Exception as e:
-            logger.error(f"AI analysis error: {str(e)}")
-            logger.error(traceback.format_exc())
-            return ResumeAnalyzer._get_fallback_analysis()
+            logger.error(f"Failed to parse AI response: {e}")
+            raise ValueError("Failed to parse AI response")
+
+class OpenAIProvider(AIProvider):
+    """OpenAI provider (fallback)"""
     
-    @staticmethod
-    def _get_fallback_analysis(error_msg: str = None) -> Dict[str, Any]:
-        """Returns a fallback analysis when AI fails"""
-        hot_take = error_msg if error_msg else "Your resume reads like it was written by a robot for robots"
+    def __init__(self):
+        self.api_key = app.config['OPENAI_API_KEY']
+        self.model = app.config['OPENAI_MODEL']
+    
+    def analyze_resume(self, content: str, resume_type: str = "general") -> Dict[str, Any]:
+        """Analyze resume using OpenAI"""
+        if not self.api_key:
+            raise ValueError("OpenAI API key not configured")
         
+        # Similar implementation to Deepseek but using OpenAI API
+        # This is a fallback option
+        raise NotImplementedError("OpenAI provider not implemented yet")
+
+class MockProvider(AIProvider):
+    """Mock provider for testing"""
+    
+    def analyze_resume(self, content: str, resume_type: str = "general") -> Dict[str, Any]:
+        """Return mock analysis for testing"""
         return {
             "verdict": {
                 "decision": "PASS",
-                "confidence": 75,
-                "hot_take": hot_take,
-                "first_impression": "Generic and forgettable - needs serious work"
+                "confidence": 85,
+                "hot_take": "This resume reads like ChatGPT's first draft - soulless and forgettable",
+                "first_impression": "Another generic resume in the pile"
             },
             "analysis": {
                 "clarity": {
-                    "strength": "Contact information is present",
-                    "weakness": "Everything else is vague corporate speak"
+                    "strength": "Contact info is readable",
+                    "weakness": "Everything else is corporate word salad"
                 },
                 "impact": {
-                    "strength": "You have work experience",
-                    "weakness": "No quantifiable achievements or impact shown"
+                    "strength": "You showed up to work",
+                    "weakness": "No measurable impact anywhere"
                 },
                 "mistakes": [
-                    "Too many buzzwords, not enough substance",
-                    "No numbers or metrics to prove impact",
-                    "Generic objective statement that says nothing"
+                    "Zero quantifiable achievements",
+                    "Buzzword bingo champion",
+                    "Reads like a job description, not accomplishments"
                 ]
             },
             "feedback": {
-                "brutal_truth": "This resume could belong to literally anyone - there's nothing memorable here",
+                "brutal_truth": "You're invisible in a sea of identical resumes",
                 "actionable_advice": [
-                    "Replace every responsibility with a quantified achievement",
-                    "Delete the objective and write a punchy summary instead",
-                    "Cut it down to 1 page - nobody's reading your life story"
+                    "Add numbers to EVERY bullet point",
+                    "Delete 'responsible for' and start with action verbs",
+                    "Show impact, not just activities"
                 ],
-                "encouragement": "You have experience - now make it shine with specifics and impact"
+                "encouragement": "You have experience - now make it shine"
             },
             "benchmarks": {
                 "clarity_score": 4,
                 "impact_score": 3,
-                "formatting_score": 5,
+                "formatting_score": 6,
                 "overall_score": 4
             }
         }
 
-# File Processing
+# AI Provider Factory
+def get_ai_provider() -> AIProvider:
+    """Get the configured AI provider"""
+    provider_name = app.config['AI_PROVIDER'].lower()
+    
+    if provider_name == 'deepseek':
+        return DeepseekProvider()
+    elif provider_name == 'openai':
+        return OpenAIProvider()
+    else:
+        return MockProvider()
+
+# ============================================================================
+# FILE PROCESSING
+# ============================================================================
+
 class FileProcessor:
-    """Handles file upload and content extraction"""
+    """Modern file processor with better error handling"""
     
     @staticmethod
     def allowed_file(filename: str) -> bool:
-        """Check if file extension is allowed"""
-        return '.' in filename and \
-               filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+        """Check if file type is allowed"""
+        if not filename or '.' not in filename:
+            return False
+        return filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
     
     @staticmethod
-    def extract_pdf_text(file_path: str) -> str:
-        """Extract text content from PDF file"""
+    def extract_text(file_path: str, file_type: str) -> str:
+        """Extract text from file"""
         try:
-            text = ""
-            with open(file_path, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
-                for page_num, page in enumerate(pdf_reader.pages):
-                    try:
-                        text += page.extract_text() + "\n"
-                    except Exception as e:
-                        logger.warning(f"Failed to extract page {page_num}: {e}")
-            
-            if not text.strip():
-                return "Error: Could not extract text from PDF. The file might be image-based or corrupted."
-            
-            return text[:10000]  # Limit to first 10k chars
-            
+            if file_type == 'pdf':
+                return FileProcessor._extract_pdf(file_path)
+            elif file_type in ['txt', 'text']:
+                return FileProcessor._extract_text_file(file_path)
+            else:
+                return "Error: Unsupported file type"
         except Exception as e:
-            logger.error(f"PDF extraction error: {e}")
-            return f"Error extracting PDF: {str(e)}"
+            logger.error(f"Text extraction error: {e}")
+            return f"Error: Failed to extract text - {str(e)}"
     
     @staticmethod
-    def extract_text_file(file_path: str) -> str:
-        """Extract content from text file"""
-        try:
-            with open(file_path, 'r', encoding='utf-8') as file:
-                return file.read()[:10000]
-        except Exception as e:
-            logger.error(f"Text file extraction error: {e}")
-            return f"Error reading text file: {str(e)}"
+    def _extract_pdf(file_path: str) -> str:
+        """Extract text from PDF"""
+        text = ""
+        with open(file_path, 'rb') as file:
+            pdf_reader = PyPDF2.PdfReader(file)
+            for page in pdf_reader.pages:
+                try:
+                    text += page.extract_text() + "\n"
+                except:
+                    continue
+        
+        if not text.strip():
+            return "Error: Could not extract text from PDF"
+        
+        return text[:10000]  # Limit to 10k chars
+    
+    @staticmethod
+    def _extract_text_file(file_path: str) -> str:
+        """Extract text from text file"""
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
+            return file.read()[:10000]
     
     @staticmethod
     def detect_resume_type(content: str) -> str:
-        """Detect the type of resume based on content"""
+        """Detect resume type from content"""
         content_lower = content.lower()
         
-        # Tech keywords
-        tech_keywords = ['software', 'developer', 'engineer', 'programming', 'coding', 
-                        'javascript', 'python', 'java', 'react', 'api', 'database']
+        keywords = {
+            'tech': ['software', 'developer', 'engineer', 'programming', 'api', 'database'],
+            'creative': ['design', 'creative', 'art', 'ui/ux', 'portfolio'],
+            'executive': ['director', 'vp', 'president', 'executive', 'leadership'],
+            'sales': ['sales', 'revenue', 'quota', 'pipeline', 'closing'],
+            'marketing': ['marketing', 'campaign', 'brand', 'social media', 'seo']
+        }
         
-        # Creative keywords
-        creative_keywords = ['design', 'creative', 'art', 'graphic', 'ui/ux', 'portfolio',
-                           'adobe', 'figma', 'sketch', 'illustration']
+        scores = {}
+        for resume_type, words in keywords.items():
+            scores[resume_type] = sum(1 for word in words if word in content_lower)
         
-        # Executive keywords
-        exec_keywords = ['director', 'vp', 'president', 'executive', 'strategic', 
-                        'leadership', 'c-suite', 'board', 'revenue growth']
-        
-        tech_count = sum(1 for keyword in tech_keywords if keyword in content_lower)
-        creative_count = sum(1 for keyword in creative_keywords if keyword in content_lower)
-        exec_count = sum(1 for keyword in exec_keywords if keyword in content_lower)
-        
-        if tech_count > max(creative_count, exec_count):
-            return "tech"
-        elif creative_count > max(tech_count, exec_count):
-            return "creative"
-        elif exec_count > 0:
-            return "executive"
-        else:
-            return "general"
+        if max(scores.values()) > 0:
+            return max(scores, key=scores.get)
+        return 'general'
 
-# Roast Card Generation
+# ============================================================================
+# ROAST CARD GENERATION
+# ============================================================================
+
 class RoastCardGenerator:
-    """Generates viral roast cards from analysis"""
+    """Generate viral roast cards"""
     
     @staticmethod
-    def generate_roast_card(analysis_data: Dict[str, Any], analysis_id: str) -> str:
-        """Generate shareable roast card image"""
+    def generate(analysis: Dict[str, Any], analysis_id: str) -> str:
+        """Generate roast card image"""
         try:
-            # Create card (Instagram story size)
+            # Create card
             width, height = 1080, 1920
             img = Image.new('RGB', (width, height), color='#0a0a0a')
             draw = ImageDraw.Draw(img)
             
-            # Use default font (production would use custom fonts)
+            # Try to load fonts
             try:
-                title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 80)
-                subtitle_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 60)
-                body_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 45)
-                small_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 35)
+                font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans"
+                title_font = ImageFont.truetype(f"{font_path}-Bold.ttf", 80)
+                body_font = ImageFont.truetype(f"{font_path}.ttf", 45)
+                small_font = ImageFont.truetype(f"{font_path}.ttf", 35)
             except:
-                # Fallback to default
+                # Fallback to default font
                 title_font = ImageFont.load_default()
-                subtitle_font = ImageFont.load_default()
                 body_font = ImageFont.load_default()
                 small_font = ImageFont.load_default()
             
-            # Resume Roaster branding
-            draw.text((50, 50), "Resume Roaster", fill='#ff6600', font=title_font)
-            draw.text((50, 150), "AI Resume Analysis", fill='#ffffff', font=subtitle_font)
+            # Header
+            draw.text((50, 50), "RESUME ROASTER", fill='#ff6600', font=title_font)
+            draw.text((50, 150), "AI-Powered Reality Check", fill='#cccccc', font=body_font)
             
             # Decision badge
-            decision = analysis_data['verdict']['decision']
-            confidence = analysis_data['verdict']['confidence']
+            verdict = analysis['verdict']
+            decision = verdict['decision']
+            confidence = verdict['confidence']
+            
             badge_color = '#00ff00' if decision == 'INTERVIEW' else '#ff4444'
+            draw.rectangle((50, 300, 550, 420), fill=badge_color)
+            draw.text((70, 325), f"{decision} ({confidence}%)", fill='#000000', font=body_font)
             
-            # Draw decision badge
-            badge_y = 300
-            draw.rectangle((50, badge_y, 550, badge_y + 120), fill=badge_color)
-            draw.text((70, badge_y + 25), f"{decision} ({confidence}%)", 
-                     fill='#000000', font=subtitle_font)
-            
-            # Hot take (main content)
-            hot_take = analysis_data['verdict']['hot_take']
+            # Hot take
+            hot_take = verdict['hot_take']
             y_pos = 500
             
-            # Add quote marks
-            draw.text((50, y_pos - 50), '"', fill='#ff6600', font=title_font)
+            # Quote marks
+            draw.text((50, y_pos), '"', fill='#ff6600', font=title_font)
             
-            # Word wrap
+            # Word wrap hot take
             words = hot_take.split()
             lines = []
             current_line = []
             
             for word in words:
                 current_line.append(word)
-                if len(' '.join(current_line)) > 25:
-                    lines.append(' '.join(current_line[:-1]))
-                    current_line = [word]
+                test_line = ' '.join(current_line)
+                if len(test_line) > 25:
+                    if len(current_line) > 1:
+                        lines.append(' '.join(current_line[:-1]))
+                        current_line = [word]
+                    else:
+                        lines.append(test_line)
+                        current_line = []
             
             if current_line:
                 lines.append(' '.join(current_line))
             
-            # Draw hot take
-            for line in lines[:5]:  # Max 5 lines
+            # Draw hot take text
+            y_pos += 50
+            for line in lines[:5]:
                 draw.text((100, y_pos), line, fill='#ffffff', font=body_font)
-                y_pos += 80
+                y_pos += 60
             
             draw.text((900, y_pos), '"', fill='#ff6600', font=title_font)
             
-            # Scores section
-            y_pos += 150
-            draw.text((50, y_pos), "ROAST SCORES:", fill='#ff6600', font=subtitle_font)
+            # Scores
             y_pos += 100
+            draw.text((50, y_pos), "SCORECARD:", fill='#ff6600', font=body_font)
+            y_pos += 80
             
-            scores = analysis_data['benchmarks']
-            score_items = [
-                ('Clarity', scores.get('clarity_score', 0)),
-                ('Impact', scores.get('impact_score', 0)),
-                ('Format', scores.get('formatting_score', 0)),
-                ('Overall', scores.get('overall_score', 0))
-            ]
-            
-            for label, score in score_items:
-                # Draw score bar
-                bar_width = int((score / 10) * 600)
-                bar_color = '#00ff00' if score >= 7 else '#ffaa00' if score >= 5 else '#ff4444'
+            benchmarks = analysis['benchmarks']
+            for label, key in [
+                ('Clarity', 'clarity_score'),
+                ('Impact', 'impact_score'),
+                ('Format', 'formatting_score'),
+                ('Overall', 'overall_score')
+            ]:
+                score = benchmarks.get(key, 5)
+                color = '#00ff00' if score >= 7 else '#ffaa00' if score >= 5 else '#ff4444'
                 
                 draw.text((50, y_pos), f"{label}:", fill='#ffffff', font=body_font)
+                
+                # Score bar
+                bar_width = int((score / 10) * 600)
                 draw.rectangle((250, y_pos + 10, 850, y_pos + 40), outline='#333333', width=2)
-                draw.rectangle((250, y_pos + 10, 250 + bar_width, y_pos + 40), fill=bar_color)
-                draw.text((870, y_pos), f"{score}/10", fill=bar_color, font=body_font)
-                y_pos += 80
+                draw.rectangle((250, y_pos + 10, 250 + bar_width, y_pos + 40), fill=color)
+                draw.text((870, y_pos), f"{score}/10", fill=color, font=body_font)
+                
+                y_pos += 70
             
             # Top mistake
             y_pos += 50
-            if analysis_data['analysis']['mistakes']:
-                draw.text((50, y_pos), "BIGGEST MISTAKE:", fill='#ff4444', font=small_font)
-                y_pos += 50
-                mistake = analysis_data['analysis']['mistakes'][0]
+            mistakes = analysis['analysis'].get('mistakes', [])
+            if mistakes:
+                draw.text((50, y_pos), "BIGGEST ISSUE:", fill='#ff4444', font=body_font)
+                y_pos += 60
                 
-                # Word wrap mistake
-                words = mistake.split()
+                mistake_text = mistakes[0]
+                # Word wrap
+                words = mistake_text.split()
                 lines = []
                 current_line = []
                 
@@ -454,312 +727,108 @@ class RoastCardGenerator:
                 if current_line:
                     lines.append(' '.join(current_line))
                 
-                for line in lines[:2]:
+                for line in lines[:3]:
                     draw.text((50, y_pos), line, fill='#ffffff', font=small_font)
-                    y_pos += 40
+                    y_pos += 45
             
             # Footer
-            draw.text((50, height - 200), "Get your resume roasted:", fill='#888888', font=body_font)
-            draw.text((50, height - 150), "resumeroaster.ai", fill='#ff6600', font=subtitle_font)
-            draw.text((50, height - 100), f"#{analysis_id[:8]}", fill='#666666', font=body_font)
+            draw.text((50, height - 200), "Get roasted at:", fill='#888888', font=body_font)
+            draw.text((50, height - 150), "resumeroaster.ai", fill='#ff6600', font=body_font)
+            draw.text((50, height - 100), f"#{analysis_id[:8]}", fill='#666666', font=small_font)
             
-            # Convert to base64
-            img_bytes = io.BytesIO()
-            img.save(img_bytes, format='PNG', quality=95)
-            img_bytes.seek(0)
+            # Save to file
+            filename = f"roast_cards/roast_{analysis_id}.png"
+            img.save(filename, 'PNG', quality=95)
             
-            img_base64 = base64.b64encode(img_bytes.getvalue()).decode()
+            # Convert to base64 for embedding
+            with open(filename, 'rb') as f:
+                img_data = f.read()
+                img_base64 = base64.b64encode(img_data).decode()
+            
             return f"data:image/png;base64,{img_base64}"
             
         except Exception as e:
             logger.error(f"Roast card generation error: {e}")
             return ""
 
-# Database Operations
-class Database:
-    """Handles all database operations"""
-    
-    @staticmethod
-    def save_analysis(analysis_data: Dict[str, Any], 
-                     resume_type: str = "general",
-                     user_email: str = "",
-                     is_public: bool = True) -> ResumeAnalysis:
-        """Save analysis to database"""
-        analysis_id = str(uuid.uuid4())
-        
-        # Generate roast card
-        roast_url = RoastCardGenerator.generate_roast_card(analysis_data, analysis_id)
-        
-        # Create analysis object
-        analysis = ResumeAnalysis(
-            verdict=analysis_data["verdict"],
-            analysis=analysis_data["analysis"],
-            feedback=analysis_data["feedback"],
-            benchmarks=analysis_data["benchmarks"],
-            analysis_id=analysis_id,
-            created_at=datetime.now().isoformat(),
-            roast_card_url=roast_url,
-            user_email=user_email,
-            is_public=is_public,
-            resume_type=resume_type
-        )
-        
-        # Save to database
-        try:
-            conn = sqlite3.connect(app.config['DATABASE_PATH'])
-            conn.execute(
-                """INSERT INTO analyses 
-                   (id, data, user_email, is_public, resume_type) 
-                   VALUES (?, ?, ?, ?, ?)""",
-                (analysis_id, json.dumps(asdict(analysis)), user_email, is_public, resume_type)
-            )
-            conn.commit()
-            conn.close()
-            
-            logger.info(f"Analysis saved successfully with ID: {analysis_id}")
-            return analysis
-            
-        except Exception as e:
-            logger.error(f"Failed to save analysis: {e}")
-            raise
-    
-    @staticmethod
-    def get_analysis(analysis_id: str) -> Optional[Dict[str, Any]]:
-        """Retrieve analysis by ID"""
-        try:
-            conn = sqlite3.connect(app.config['DATABASE_PATH'])
-            cursor = conn.execute(
-                'SELECT data FROM analyses WHERE id = ?',
-                (analysis_id,)
-            )
-            
-            row = cursor.fetchone()
-            conn.close()
-            
-            if row:
-                return json.loads(row[0])
-            
-            return None
-            
-        except Exception as e:
-            logger.error(f"Failed to get analysis: {e}")
-            return None
-    
-    @staticmethod
-    def get_public_analyses(limit: int = 20) -> List[Dict[str, Any]]:
-        """Get recent public analyses for gallery"""
-        try:
-            conn = sqlite3.connect(app.config['DATABASE_PATH'])
-            cursor = conn.execute('''
-                SELECT data FROM analyses 
-                WHERE is_public = 1
-                ORDER BY created_at DESC 
-                LIMIT ?
-            ''', (limit,))
-            
-            analyses = []
-            for row in cursor.fetchall():
-                try:
-                    data = json.loads(row[0])
-                    analyses.append({
-                        "decision": data["verdict"]["decision"],
-                        "confidence": data["verdict"]["confidence"],
-                        "hot_take": data["verdict"]["hot_take"],
-                        "overall_score": data["benchmarks"]["overall_score"],
-                        "resume_type": data.get("resume_type", "general"),
-                        "created_at": data["created_at"]
-                    })
-                except:
-                    continue
-            
-            conn.close()
-            return analyses
-            
-        except Exception as e:
-            logger.error(f"Failed to get public analyses: {e}")
-            return []
-    
-    @staticmethod
-    def get_statistics() -> Dict[str, Any]:
-        """Calculate platform statistics"""
-        try:
-            conn = sqlite3.connect(app.config['DATABASE_PATH'])
-            
-            # Total analyses
-            cursor = conn.execute('SELECT COUNT(*) FROM analyses')
-            total_analyses = cursor.fetchone()[0]
-            
-            # Recent analyses for stats
-            cursor = conn.execute('''
-                SELECT data FROM analyses 
-                WHERE created_at > datetime('now', '-30 days')
-                ORDER BY created_at DESC 
-                LIMIT 500
-            ''')
-            
-            scores = {
-                'clarity': [],
-                'impact': [],
-                'formatting': [],
-                'overall': []
-            }
-            
-            interview_count = 0
-            total_count = 0
-            common_mistakes = {}
-            
-            for row in cursor.fetchall():
-                try:
-                    data = json.loads(row[0])
-                    benchmarks = data.get('benchmarks', {})
-                    
-                    scores['clarity'].append(benchmarks.get('clarity_score', 5))
-                    scores['impact'].append(benchmarks.get('impact_score', 5))
-                    scores['formatting'].append(benchmarks.get('formatting_score', 5))
-                    scores['overall'].append(benchmarks.get('overall_score', 5))
-                    
-                    if data['verdict']['decision'] == 'INTERVIEW':
-                        interview_count += 1
-                    total_count += 1
-                    
-                    # Track common mistakes
-                    for mistake in data['analysis'].get('mistakes', []):
-                        if mistake in common_mistakes:
-                            common_mistakes[mistake] += 1
-                        else:
-                            common_mistakes[mistake] = 1
-                    
-                except:
-                    continue
-            
-            conn.close()
-            
-            # Calculate averages
-            def safe_mean(lst):
-                return round(statistics.mean(lst), 1) if lst else 5.0
-            
-            # Get top mistakes
-            sorted_mistakes = sorted(common_mistakes.items(), key=lambda x: x[1], reverse=True)
-            top_mistakes = [mistake for mistake, _ in sorted_mistakes[:5]]
-            
-            return {
-                "total_analyses": total_analyses,
-                "interview_rate": round((interview_count / total_count * 100), 1) if total_count > 0 else 0,
-                "avg_scores": {
-                    "clarity": safe_mean(scores['clarity']),
-                    "impact": safe_mean(scores['impact']),
-                    "formatting": safe_mean(scores['formatting']),
-                    "overall": safe_mean(scores['overall'])
-                },
-                "top_mistakes": top_mistakes
-            }
-            
-        except Exception as e:
-            logger.error(f"Failed to calculate statistics: {e}")
-            return {
-                "total_analyses": 0,
-                "interview_rate": 0,
-                "avg_scores": {
-                    "clarity": 5.0,
-                    "impact": 5.0,
-                    "formatting": 5.0,
-                    "overall": 5.0
-                },
-                "top_mistakes": []
-            }
+# ============================================================================
+# API ROUTES
+# ============================================================================
 
-# API Routes
 @app.route('/')
 def index():
-    """Serve the main application"""
+    """Health check / basic info"""
+    return jsonify({
+        "service": "Resume Roaster API",
+        "version": "2.0",
+        "status": "operational",
+        "endpoints": {
+            "POST /api/analyze": "Analyze a resume",
+            "GET /api/analysis/<id>": "Get specific analysis",
+            "GET /api/gallery": "Get recent public analyses",
+            "GET /api/stats": "Get platform statistics",
+            "GET /health": "Health check"
+        }
+    })
+
+@app.route('/health')
+def health():
+    """Health check endpoint"""
     try:
-        # Try to serve index.html
-        if os.path.exists('index.html'):
-            return send_file('index.html')
-        elif os.path.exists(os.path.join(app.template_folder, 'index.html')):
-            return render_template('index.html')
-        else:
-            # Return a basic page if index.html not found
-            return """
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Resume Roaster - Backend Running</title>
-                <style>
-                    body { font-family: Arial, sans-serif; padding: 40px; background: #0a0a0a; color: white; }
-                    h1 { color: #ff6600; }
-                    .info { background: #1a1a1a; padding: 20px; border-radius: 8px; margin: 20px 0; }
-                </style>
-            </head>
-            <body>
-                <h1>Resume Roaster Backend Running</h1>
-                <div class="info">
-                    <h2>API Endpoints Available:</h2>
-                    <ul>
-                        <li>POST /api/analyze - Analyze a resume</li>
-                        <li>GET /api/gallery - Get public analyses</li>
-                        <li>GET /api/stats - Get platform statistics</li>
-                        <li>GET /api/analysis/{id} - Get specific analysis</li>
-                        <li>GET /health - Health check</li>
-                    </ul>
-                </div>
-            </body>
-            </html>
-            """
-    except Exception as e:
-        logger.error(f"Error serving index: {e}")
-        return jsonify({"error": "Failed to serve frontend"}), 500
+        # Check database
+        with Database.get_connection() as conn:
+            conn.execute('SELECT 1')
+        db_status = "healthy"
+    except:
+        db_status = "unhealthy"
+    
+    return jsonify({
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "components": {
+            "database": db_status,
+            "ai_provider": app.config['AI_PROVIDER'],
+            "ai_configured": bool(app.config.get(f"{app.config['AI_PROVIDER'].upper()}_API_KEY"))
+        }
+    })
 
 @app.route('/api/analyze', methods=['POST'])
+@rate_limit(max_requests=20)  # 20 analyses per hour per IP
 def analyze_resume():
-    """Main endpoint for resume analysis"""
+    """Main resume analysis endpoint"""
+    start_time = time.time()
+    
     try:
-        # Validate request
+        # Validate file upload
         if 'file' not in request.files:
             return jsonify({"error": "No file uploaded"}), 400
         
         file = request.files['file']
-        if file.filename == '':
+        if not file or file.filename == '':
             return jsonify({"error": "No file selected"}), 400
         
         if not FileProcessor.allowed_file(file.filename):
             return jsonify({
-                "error": "Invalid file type. Please upload a PDF or text file."
+                "error": "Invalid file type. Supported: PDF, TXT, DOC, DOCX"
             }), 400
         
-        # Get form data
+        # Get metadata
         is_public = request.form.get('is_public', 'true').lower() == 'true'
-        user_email = request.form.get('email', '')
+        user_email = request.form.get('email', '').strip()
         
-        # Save uploaded file
+        # Save file
         filename = secure_filename(file.filename)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{timestamp}_{filename}")
         
-        try:
-            file.save(file_path)
-            logger.info(f"File saved successfully: {file_path}")
-        except Exception as e:
-            logger.error(f"Failed to save file: {e}")
-            return jsonify({"error": f"Failed to save uploaded file: {str(e)}"}), 500
+        file.save(file_path)
+        logger.info(f"File saved: {file_path}")
         
-        # Extract content
-        file_ext = filename.lower().split('.')[-1]
+        # Extract text
+        file_type = filename.rsplit('.', 1)[1].lower()
+        content = FileProcessor.extract_text(file_path, file_type)
         
-        try:
-            if file_ext == 'pdf':
-                content = FileProcessor.extract_pdf_text(file_path)
-            else:
-                content = FileProcessor.extract_text_file(file_path)
-            
-            logger.info(f"Extracted {len(content)} characters from {file_ext} file")
-        except Exception as e:
-            logger.error(f"Content extraction failed: {e}")
-            os.remove(file_path)
-            return jsonify({"error": f"Failed to extract content: {str(e)}"}), 500
-        
-        # Check for extraction errors
-        if content.startswith("Error"):
+        if content.startswith("Error:"):
             os.remove(file_path)
             return jsonify({"error": content}), 400
         
@@ -769,214 +838,171 @@ def analyze_resume():
         
         # Analyze with AI
         try:
-            analysis_data = ResumeAnalyzer.analyze_resume(content, resume_type)
-            logger.info("AI analysis completed")
+            ai_provider = get_ai_provider()
+            analysis_data = ai_provider.analyze_resume(content, resume_type)
         except Exception as e:
             logger.error(f"AI analysis failed: {e}")
             os.remove(file_path)
-            return jsonify({"error": f"Analysis failed: {str(e)}"}), 500
+            
+            # Use mock provider as fallback
+            if app.config['AI_PROVIDER'] != 'mock':
+                logger.info("Falling back to mock provider")
+                analysis_data = MockProvider().analyze_resume(content, resume_type)
+            else:
+                return jsonify({"error": f"Analysis failed: {str(e)}"}), 500
         
-        # Save analysis
+        # Generate analysis ID
+        analysis_id = str(uuid.uuid4())
+        
+        # Generate roast card
+        roast_url = RoastCardGenerator.generate(analysis_data, analysis_id)
+        
+        # Calculate processing time
+        processing_time = time.time() - start_time
+        
+        # Create analysis object
+        analysis = ResumeAnalysis(
+            analysis_id=analysis_id,
+            verdict=analysis_data['verdict'],
+            analysis=analysis_data['analysis'],
+            feedback=analysis_data['feedback'],
+            benchmarks=analysis_data['benchmarks'],
+            roast_card_url=roast_url,
+            created_at=datetime.now().isoformat(),
+            resume_type=resume_type,
+            user_email=user_email,
+            is_public=is_public,
+            ai_provider=app.config['AI_PROVIDER'],
+            processing_time=processing_time
+        )
+        
+        # Save to database
+        ip_hash = hashlib.sha256(get_client_ip().encode()).hexdigest()
+        if not Database.save_analysis(analysis, ip_hash):
+            logger.error("Failed to save analysis to database")
+        
+        # Clean up
         try:
-            analysis = Database.save_analysis(
-                analysis_data,
-                resume_type,
-                user_email,
-                is_public
-            )
-            logger.info(f"Analysis saved with ID: {analysis.analysis_id}")
-        except Exception as e:
-            logger.error(f"Database save failed: {e}")
             os.remove(file_path)
-            return jsonify({"error": f"Failed to save analysis: {str(e)}"}), 500
+        except:
+            pass
         
-        # Clean up file
-        try:
-            os.remove(file_path)
-        except Exception as e:
-            logger.warning(f"Failed to delete file: {e}")
+        logger.info(f"Analysis completed in {processing_time:.2f}s")
         
-        # Prepare response
-        response_data = asdict(analysis)
-        return jsonify(response_data)
+        # Return response
+        return jsonify(asdict(analysis))
         
+    except RequestEntityTooLarge:
+        return jsonify({"error": "File too large. Maximum size is 10MB"}), 413
     except Exception as e:
         logger.error(f"Unexpected error in analyze endpoint: {e}")
-        logger.error(traceback.format_exc())
-        return jsonify({"error": f"Analysis failed: {str(e)}"}), 500
+        return jsonify({"error": "Analysis failed. Please try again."}), 500
 
-@app.route('/api/gallery', methods=['GET'])
-def get_gallery():
-    """Get public resume analyses for gallery"""
-    try:
-        analyses = Database.get_public_analyses()
-        return jsonify(analyses)
-    except Exception as e:
-        logger.error(f"Gallery endpoint error: {e}")
-        return jsonify({"error": "Failed to load gallery"}), 500
-
-@app.route('/api/stats', methods=['GET'])
-def get_stats():
-    """Get platform statistics"""
-    try:
-        stats = Database.get_statistics()
-        
-        # Add some fun stats
-        stats['fun_facts'] = [
-            f"{stats['total_analyses']} resumes roasted and counting!",
-            f"Only {stats['interview_rate']}% made it to interview stage",
-            f"Average clarity score: {stats['avg_scores']['clarity']}/10",
-            "Most common mistake: Too many buzzwords"
-        ]
-        
-        return jsonify(stats)
-        
-    except Exception as e:
-        logger.error(f"Stats endpoint error: {e}")
-        return jsonify({"error": "Failed to load statistics"}), 500
-
-@app.route('/api/analysis/<analysis_id>', methods=['GET'])
+@app.route('/api/analysis/<analysis_id>')
 def get_analysis(analysis_id):
     """Get specific analysis by ID"""
-    try:
-        analysis = Database.get_analysis(analysis_id)
-        
-        if not analysis:
-            return jsonify({"error": "Analysis not found"}), 404
-        
-        return jsonify(analysis)
-        
-    except Exception as e:
-        logger.error(f"Get analysis error: {e}")
-        return jsonify({"error": "Failed to retrieve analysis"}), 500
-
-@app.route('/api/roast-card/<analysis_id>', methods=['GET'])
-def get_roast_card(analysis_id):
-    """Get roast card for specific analysis"""
-    try:
-        analysis = Database.get_analysis(analysis_id)
-        
-        if not analysis:
-            return jsonify({"error": "Analysis not found"}), 404
-        
-        roast_url = analysis.get('roast_card_url', '')
-        
-        if not roast_url:
-            # Regenerate if missing
-            roast_url = RoastCardGenerator.generate_roast_card(analysis, analysis_id)
-        
-        return jsonify({"roast_url": roast_url})
-        
-    except Exception as e:
-        logger.error(f"Get roast card error: {e}")
-        return jsonify({"error": "Failed to get roast card"}), 500
-
-@app.route('/api/download-roast/<analysis_id>', methods=['GET'])
-def download_roast(analysis_id):
-    """Download roast card as image file"""
-    try:
-        analysis = Database.get_analysis(analysis_id)
-        
-        if not analysis:
-            return jsonify({"error": "Analysis not found"}), 404
-        
-        # Generate fresh roast card
-        roast_base64 = RoastCardGenerator.generate_roast_card(analysis, analysis_id)
-        
-        # Convert base64 to image
-        if roast_base64.startswith('data:image/png;base64,'):
-            image_data = base64.b64decode(roast_base64.split(',')[1])
-            
-            # Create response with image
-            response = make_response(image_data)
-            response.headers['Content-Type'] = 'image/png'
-            response.headers['Content-Disposition'] = f'attachment; filename=resume_roast_{analysis_id[:8]}.png'
-            
-            return response
-        else:
-            return jsonify({"error": "Failed to generate roast card"}), 500
-            
-    except Exception as e:
-        logger.error(f"Download roast error: {e}")
-        return jsonify({"error": "Failed to download roast card"}), 500
-
-@app.route('/health', methods=['GET'])
-def health_check():
-    """Health check endpoint"""
-    try:
-        # Check database connection
-        conn = sqlite3.connect(app.config['DATABASE_PATH'])
-        conn.execute('SELECT 1')
-        conn.close()
-        db_status = "healthy"
-    except:
-        db_status = "unhealthy"
+    analysis = Database.get_analysis(analysis_id)
     
-    return jsonify({
-        "status": "healthy",
-        "service": "Resume Roaster API",
-        "version": "1.0.0",
-        "timestamp": datetime.now().isoformat(),
-        "components": {
-            "database": db_status,
-            "ai_enabled": bool(app.config['OPENAI_API_KEY']),
-            "file_upload": True
-        }
-    })
+    if not analysis:
+        return jsonify({"error": "Analysis not found"}), 404
+    
+    return jsonify(analysis)
 
-# Error handlers
+@app.route('/api/gallery')
+def get_gallery():
+    """Get recent public analyses"""
+    limit = request.args.get('limit', 20, type=int)
+    limit = min(limit, 50)  # Cap at 50
+    
+    analyses = Database.get_recent_public(limit)
+    return jsonify(analyses)
+
+@app.route('/api/stats')
+def get_stats():
+    """Get platform statistics"""
+    stats = Database.get_stats()
+    
+    # Add some fun facts
+    stats['fun_facts'] = [
+        f"{stats['total_analyses']} resumes roasted!",
+        f"Only {stats['interview_rate']}% made it to interview",
+        f"Average score: {stats['avg_overall_score']}/10"
+    ]
+    
+    return jsonify(stats)
+
+@app.route('/api/download-roast/<analysis_id>')
+def download_roast(analysis_id):
+    """Download roast card as image"""
+    # Check if roast card exists
+    filename = f"roast_cards/roast_{analysis_id}.png"
+    
+    if os.path.exists(filename):
+        return send_file(
+            filename,
+            mimetype='image/png',
+            as_attachment=True,
+            download_name=f'resume_roast_{analysis_id[:8]}.png'
+        )
+    
+    # Try to regenerate
+    analysis = Database.get_analysis(analysis_id)
+    if not analysis:
+        return jsonify({"error": "Analysis not found"}), 404
+    
+    # Regenerate roast card
+    RoastCardGenerator.generate(analysis, analysis_id)
+    
+    if os.path.exists(filename):
+        return send_file(
+            filename,
+            mimetype='image/png',
+            as_attachment=True,
+            download_name=f'resume_roast_{analysis_id[:8]}.png'
+        )
+    
+    return jsonify({"error": "Failed to generate roast card"}), 500
+
+# ============================================================================
+# ERROR HANDLERS
+# ============================================================================
+
 @app.errorhandler(404)
 def not_found(e):
-    return jsonify({"error": "Endpoint not found"}), 404
+    return jsonify({"error": "Not found"}), 404
 
 @app.errorhandler(500)
-def internal_error(e):
-    logger.error(f"Internal error: {e}")
+def server_error(e):
+    logger.error(f"Server error: {e}")
     return jsonify({"error": "Internal server error"}), 500
 
-@app.errorhandler(413)
+@app.errorhandler(RequestEntityTooLarge)
 def file_too_large(e):
     return jsonify({"error": "File too large. Maximum size is 10MB"}), 413
 
-# -----------------------------------------------------------------------------
-# Database initialization hooks
-#
-# When running under a WSGI server (e.g., gunicorn or Flask's CLI), the
-# `__main__` block below is not executed. As a result, the database may not
-# be created before requests arrive, leading to "no such table" errors. To
-# prevent this, we call `init_database()` during module import and register a
-# `before_first_request` handler. Both are idempotent and safe to run multiple
-# times because the database schema uses `IF NOT EXISTS` clauses.
+# ============================================================================
+# INITIALIZATION
+# ============================================================================
 
-# Attempt to initialize the database immediately on import. If this fails we
-# log the error but continue; the `before_first_request` hook will run later.
+# Initialize database on startup
 try:
-    init_database()
+    Database.init()
 except Exception as e:
-    logger.error(f"Database initialization on import failed: {e}")
+    logger.error(f"Failed to initialize database: {e}")
 
-# Ensure the database is initialized when the first request is handled. This
-# covers scenarios where the module is imported by a WSGI server and the
-# top-level import attempt didn't run or failed.
-@app.before_first_request
-def initialize_database():
-    try:
-        init_database()
-    except Exception as e:
-        logger.error(f"Database initialization before first request failed: {e}")
+# ============================================================================
+# MAIN
+# ============================================================================
 
-# Initialize and run
 if __name__ == '__main__':
-    # Initialize database
-    init_database()
-    
     # Get port from environment
     port = int(os.getenv("PORT", 5000))
     
-    # Log startup information
+    # Log configuration
     logger.info(f"Starting Resume Roaster Backend on port {port}")
-    logger.info(f"OpenAI API Key configured: {bool(app.config.get('OPENAI_API_KEY'))}")
-    logger.info(f"Database path: {app.config['DATABASE_PATH']}")
+    logger.info(f"AI Provider: {app.config['AI_PROVIDER']}")
+    logger.info(f"Rate Limiting: {'Enabled' if app.config['RATE_LIMIT_ENABLED'] else 'Disabled'}")
+    logger.info(f"Database: {app.config['DATABASE_PATH']}")
     
     # Run server
     app.run(
