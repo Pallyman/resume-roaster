@@ -383,28 +383,26 @@ class DeepseekProvider(AIProvider):
         return hour >= 18 or hour <= 2
 
     def analyze_resume(self, content: str, resume_type: str = "general") -> Dict[str, Any]:
-        """Analyze the supplied resume using Deepseek with adaptive timeout and retries.
+        """Analyze the supplied resume using Deepseek with a fixed timeout and delay.
 
-        This method adapts its behaviour based on whether it's currently peak
-        hours in China.  If no API key is configured, a mock analysis will be
-        returned instead.  During peak hours the timeout is reduced and the
-        number of retries is limited to reduce delays for end users.  If the
-        Deepseek API repeatedly times out or returns a non‑200 response, a
-        fallback to the mock provider is used.
+        If no API key is configured, a mock analysis will be returned instead.
+        The request timeout is set to two minutes (120 s) and a consistent
+        retry policy is used regardless of the time of day.  When the
+        Deepseek API returns a non‑200 response, the call will be retried
+        after a two‑minute pause (unless no retries remain), and ultimately
+        falls back to the mock provider if all attempts fail.
         """
         # Fall back to the mock provider if no API key is configured
         if not self.api_key:
             logger.error("Deepseek API key not configured")
             return MockProvider().analyze_resume(content, resume_type)
 
-        # Determine timeout and retry policy based on current usage period
-        if self.is_peak_hours():
-            logger.warning("Peak hours detected - using shorter timeout")
-            timeout = 20
-            max_retries = 1
-        else:
-            timeout = 30
-            max_retries = 2
+        # Use a fixed timeout and retry policy.  We deliberately avoid
+        # adjusting based on time of day to simplify behaviour and prevent
+        # premature timeouts during peak usage.  Each request will wait up to
+        # two minutes for a response, and up to two attempts will be made.
+        timeout = 120  # 2 minutes
+        max_retries = 2
 
         headers = {
             'Authorization': f'Bearer {self.api_key}',
@@ -443,12 +441,14 @@ class DeepseekProvider(AIProvider):
                 logger.info(f"Deepseek API responded in {elapsed:.2f}s")
 
                 # Non‑200 responses are considered failures.  If we have
-                # additional attempts remaining we retry after a short pause;
+                # additional attempts remaining we retry after a longer pause;
                 # otherwise fall back to the mock provider.
                 if response.status_code != 200:
                     logger.error(f"Deepseek API error: {response.status_code} - {response.text}")
                     if attempt < max_retries - 1:
-                        time.sleep(2)
+                        # Increase delay between retries to two minutes to allow
+                        # transient upstream issues to clear.
+                        time.sleep(120)
                         continue
                     logger.info("API error - falling back to mock provider")
                     return MockProvider().analyze_resume(content, resume_type)
