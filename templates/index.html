@@ -610,94 +610,43 @@
         });
         
         // Main analysis function
-        //
-        // This implementation improves upon the basic version by adding file size
-        // validation, constructing the API URL dynamically, verifying the server
-        // response format, and providing more descriptive error messages when
-        // something goes wrong.  These additional checks make it easier to
-        // debug connectivity issues and provide a better user experience.
         async function analyzeResume() {
             const fileInput = document.getElementById('fileInput');
             const file = fileInput.files[0];
-
-            // Ensure a file has been selected
+            
             if (!file) {
                 showError('Please select a resume file');
                 return;
             }
-
-            // Enforce a maximum file size of 10MB
-            if (file.size > 10 * 1024 * 1024) {
-                showError('File too large. Maximum size is 10MB.');
-                return;
-            }
-
+            
             // Show loading state
             document.getElementById('loading').style.display = 'block';
             document.getElementById('analyzeButton').disabled = true;
             document.getElementById('error').style.display = 'none';
             document.getElementById('results').style.display = 'none';
-
+            
             // Prepare form data
             const formData = new FormData();
             formData.append('file', file);
             formData.append('is_public', 'true');
-
+            
             try {
-                // Build the correct API URL based on the current origin
-                const apiUrl = window.location.origin + '/api/analyze';
-                console.log('Calling API:', apiUrl);
-
-                const response = await fetch(apiUrl, {
+                const response = await fetch('/api/analyze', {
                     method: 'POST',
                     body: formData
                 });
-
-                console.log('Response status:', response.status);
-                console.log('Response type:', response.headers.get('content-type'));
-
-                // Check if response is JSON
-                const contentType = response.headers.get('content-type');
-                if (!contentType || !contentType.includes('application/json')) {
-                    // If not JSON, try to get the text to see what was returned
-                    const text = await response.text();
-                    console.error('Non-JSON response:', text);
-                    throw new Error('Server returned an invalid response. Please try again.');
-                }
-
+                
                 const data = await response.json();
-
+                
                 if (!response.ok) {
-                    throw new Error(data.error || `Server error: ${response.status}`);
+                    throw new Error(data.error || 'Analysis failed');
                 }
-
-                // Validate the response has expected structure
-                if (!data.verdict || !data.analysis || !data.benchmarks) {
-                    console.error('Invalid response structure:', data);
-                    throw new Error('Invalid analysis response received');
-                }
-
+                
                 // Display results
                 displayAnalysis(data);
-
+                
             } catch (error) {
-                console.error('Analysis error:', error);
-
-                // Provide user-friendly error messages
-                let errorMessage = 'Failed to analyze resume. ';
-
-                if (error.message.includes('Failed to fetch')) {
-                    errorMessage += 'Cannot connect to server.';
-                } else if (error.message.includes('rate limit')) {
-                    errorMessage += 'Too many requests. Please try again later.';
-                } else if (error.message.includes('Invalid file type')) {
-                    errorMessage += 'Please upload a PDF, TXT, DOC, or DOCX file.';
-                } else {
-                    errorMessage += error.message || 'Please try again.';
-                }
-
-                showError(errorMessage);
-
+                showError(error.message || 'Failed to analyze resume. Please try again.');
             } finally {
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('analyzeButton').disabled = false;
